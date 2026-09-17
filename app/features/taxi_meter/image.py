@@ -4,7 +4,7 @@ import httpx
 from PIL import Image
 
 from ...core.exceptions import ImageFetchError
-from ...llm.client import ImageBytes
+from ...llm import ImageBytes
 
 ALLOWED = {"image/jpeg", "image/png"}
 MAX_SIZE = 5 * 1024 * 1024
@@ -14,7 +14,7 @@ TIMEOUT = 5.0
 def load_image(image_url: str) -> ImageBytes:
     try:
         res = httpx.get(image_url, timeout=TIMEOUT, follow_redirects=False)
-        res.raise_for_status() # 예외처리, 4xx, 5xx 예외처리 
+        res.raise_for_status() # 예외 발생, 4xx, 5xx 예외처리 
     except httpx.HTTPError as exc:
         raise ImageFetchError("image download failed") from exc
 
