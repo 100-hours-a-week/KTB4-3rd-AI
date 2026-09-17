@@ -9,6 +9,6 @@ JSON만 출력하세요. 키: cost
 
 
 def judge(image: ImageBytes) -> dict:
-    raw = llm("slm").complete(image, PROMPT)
+    raw = llm("openai").complete(image, PROMPT)
     payload = json.loads(raw)
     return {"cost": int(payload["cost"])}
