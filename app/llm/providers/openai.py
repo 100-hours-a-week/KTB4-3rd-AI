@@ -7,7 +7,7 @@ import httpx
 from ..types import ImageBytes
 
 URL = "https://api.openai.com/v1/responses"
-MODEL = "gpt-5.6-luna"
+MODEL = "gpt-6-luna"
 TIMEOUT = 60
 
 
