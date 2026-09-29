@@ -1,0 +1,24 @@
+[project]
+name = "backend-fastapi"
+version = "0.1.0"
+requires-python = ">=3.10"
+# v2(luna만)는 기본 의존성만 있으면 된다.
+dependencies = [
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.52",
+    "httpx>=0.28",
+    "pillow>=12",
+]
+
+[project.optional-dependencies]
+# 이 서버에서 OCR과 openjev를 돌릴 때(IMAGE_DEVICE=cpu, mps). GPU 서버는 paddlepaddle-gpu로 바꾼다.
+local = [
+    "paddleocr>=3.7",
+    "paddlepaddle>=3.0",
+    "torch>=2.13",
+    "transformers>=5.16",
+]
+# Modal T4를 부르거나 배포할 때(IMAGE_DEVICE=modal). GPU 쪽 패키지는 llm/modal_app.py 이미지에 있다.
+modal = [
+    "modal>=1.0",
+]
