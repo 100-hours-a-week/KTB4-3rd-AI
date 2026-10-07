@@ -1,4 +1,4 @@
-# 미터기 사진 URL을 받아 JPEG, PNG인지 검사하고 바이트를 돌려준다.
+# 영수증 사진 URL을 받아 JPEG, PNG인지 검사하고 바이트를 돌려준다.
 from io import BytesIO
 from urllib.parse import urlparse
 
