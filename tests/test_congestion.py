@@ -266,7 +266,7 @@ def test_skeleton_still_does_not_filter_old_content_or_judge_text(
 def test_future_signal_rejected_relative_to_as_of(
     payload: dict[str, Any], level: str
 ) -> None:
-    # 15:00+09:00 is 06:00Z; compare instants rather than timestamp text.
+    # 15:00+09:00은 06:00Z와 같은 시각이다. 문자열이 아닌 실제 시각을 비교한다.
     node(payload, level)["created_at"] = "2026-10-07T06:00:01Z"
     assert_invalid(payload)
 
@@ -288,7 +288,7 @@ def test_request_size_boundaries(payload: dict[str, Any], kind: str) -> None:
         target[:] = [dict(comment, comment_id=i + 1) for i in range(100)]
         overflow = dict(comment, comment_id=101)
     else:
-        # 10 posts + 990 comments = 1,000 signals; each list is within its own limit.
+        # 원글 10개와 댓글 990개로 제보 1,000개를 만들되 각 목록의 개별 상한은 지킨다.
         target_posts = node(payload, "spot")["post_bundles"]
         target_posts[:] = [
             dict(
@@ -333,7 +333,7 @@ def test_analyzer_replacement_preserves_input_and_isolates_spot_failure(
                 raise AnalysisError(
                     "private upstream details must not reach the client"
                 )
-            assert spot.spot_id == 3  # An empty spot must bypass the analyzer.
+            assert spot.spot_id == 3  # 빈 스팟은 분석기를 거쳐서는 안 된다.
             return CongestionResult(congestion_level="LOW", report_count=2, causes=[])
 
     node(payload, "post")["content"] = "  사람이 많아요.  "

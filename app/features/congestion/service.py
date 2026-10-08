@@ -45,7 +45,7 @@ class FakeCongestionAnalyzer:
 
 
 class LLMCongestionAnalyzer:
-    """게시글 묶음별 순차 판정을 독립 집계 함수에 연결한다."""
+    """한 스팟 안의 게시글 묶음을 순차 판정하고 독립 집계 함수에 연결한다."""
 
     def __init__(self, complete: Callable[[str], str] = call_api_model) -> None:
         self._complete = complete

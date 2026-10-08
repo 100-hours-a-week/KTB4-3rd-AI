@@ -1,1 +1,1 @@
-"""Congestion analysis feature."""
+"""혼잡도 분석 기능."""
