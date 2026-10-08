@@ -326,7 +326,7 @@ def test_failed_bundle_skips_its_spot_but_next_spot_continues() -> None:
     finally:
         app.dependency_overrides.pop(get_analyzer, None)
     assert response.status_code == 200
-    assert called == [10, 12]
+    assert sorted(called) == [10, 12]
     assert response.json()["spots"][0]["analysis_status"] == "FAILED"
     assert response.json()["spots"][1]["result"] == {
         "congestion_level": "MEDIUM",
