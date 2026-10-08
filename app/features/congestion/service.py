@@ -1,6 +1,7 @@
 """스팟별 분석기 경계와 요청 결과 조립."""
 
 from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import datetime
 from typing import Protocol
 
@@ -18,6 +19,8 @@ from .models import (
     CongestionSpotSuccess,
 )
 from .preprocessor import select_analyzable_bundles
+
+MAX_CONCURRENT_SPOTS = 3
 
 
 class AnalysisError(Exception):
@@ -64,8 +67,7 @@ def get_analyzer() -> CongestionAnalyzer:
 def analyze_request(
     request: CongestionAnalysisRequest, analyzer: CongestionAnalyzer
 ) -> CongestionAnalysisResponse:
-    spots: list[CongestionSpotResult] = []
-    for spot in request.spots:
+    def analyze_spot(spot: CongestionSpotInput) -> CongestionSpotResult:
         if not spot.post_bundles:
             result = CongestionResult(
                 congestion_level="UNKNOWN", report_count=0, causes=[]
@@ -74,7 +76,27 @@ def analyze_request(
             try:
                 result = analyzer.analyze(spot, request.as_of)
             except AnalysisError:
-                spots.append(CongestionSpotFailure(spot_id=spot.spot_id))
-                continue
-        spots.append(CongestionSpotSuccess(spot_id=spot.spot_id, result=result))
+                return CongestionSpotFailure(spot_id=spot.spot_id)
+        return CongestionSpotSuccess(spot_id=spot.spot_id, result=result)
+
+    executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_SPOTS)
+    pending: dict[Future[CongestionSpotResult], int] = {}
+    results: dict[int, CongestionSpotResult] = {}
+    next_index = 0
+    complete = False
+    try:
+        while next_index < len(request.spots) and len(pending) < MAX_CONCURRENT_SPOTS:
+            pending[executor.submit(analyze_spot, request.spots[next_index])] = next_index
+            next_index += 1
+        while pending:
+            done, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                results[pending.pop(future)] = future.result()
+            while next_index < len(request.spots) and len(pending) < MAX_CONCURRENT_SPOTS:
+                pending[executor.submit(analyze_spot, request.spots[next_index])] = next_index
+                next_index += 1
+        complete = True
+    finally:
+        executor.shutdown(wait=complete, cancel_futures=not complete)
+    spots = [results[index] for index in range(len(request.spots))]
     return CongestionAnalysisResponse(request_id=request.request_id, spots=spots)

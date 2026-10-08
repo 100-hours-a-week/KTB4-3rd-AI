@@ -1,15 +1,22 @@
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime
+from threading import Event, Lock
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.features.congestion.models import CongestionResult, CongestionSpotInput
+from app.features.congestion.models import (
+    CongestionAnalysisRequest,
+    CongestionResult,
+    CongestionSpotInput,
+)
 from app.features.congestion.service import (
     AnalysisError,
     FakeCongestionAnalyzer,
+    analyze_request,
     get_analyzer,
 )
 from app.main import app
@@ -367,6 +374,110 @@ def test_analyzer_replacement_preserves_input_and_isolates_spot_failure(
             },
         ],
     }
+
+
+def test_three_spots_run_together_without_reordering_results(payload: dict[str, Any]) -> None:
+    spots = []
+    for spot_id in range(1, 7):
+        spot = deepcopy(payload["spots"][0])
+        spot["spot_id"] = spot_id
+        spot["post_bundles"][0]["post_id"] = 100 + spot_id
+        spot["post_bundles"][0]["comments"][0]["comment_id"] = 200 + spot_id
+        spots.append(spot)
+    payload["spots"] = spots
+    request = CongestionAnalysisRequest.model_validate(payload)
+    started: list[int] = []
+    active = 0
+    peak_active = 0
+    lock = Lock()
+    three_started = Event()
+    release = Event()
+
+    class WaitingAnalyzer:
+        def analyze(
+            self, spot: CongestionSpotInput, as_of: datetime
+        ) -> CongestionResult:
+            nonlocal active, peak_active
+            with lock:
+                active += 1
+                peak_active = max(peak_active, active)
+                started.append(spot.spot_id)
+                if len(started) == 3:
+                    three_started.set()
+            try:
+                assert release.wait(timeout=5)
+            finally:
+                with lock:
+                    active -= 1
+            return CongestionResult(
+                congestion_level="MEDIUM", report_count=spot.spot_id, causes=[]
+            )
+
+    with ThreadPoolExecutor(max_workers=1) as caller:
+        future = caller.submit(analyze_request, request, WaitingAnalyzer())
+        try:
+            assert three_started.wait(timeout=1.5)
+            with lock:
+                assert len(started) == 3
+                assert peak_active == 3
+        finally:
+            release.set()
+        response = future.result(timeout=5)
+
+    assert [spot.spot_id for spot in response.spots] == list(range(1, 7))
+    assert [spot.result.report_count for spot in response.spots] == list(range(1, 7))
+    assert peak_active == 3
+
+
+def test_unexpected_error_stops_scheduling_new_spots(payload: dict[str, Any]) -> None:
+    spots = []
+    for spot_id in range(1, 7):
+        spot = deepcopy(payload["spots"][0])
+        spot["spot_id"] = spot_id
+        spot["post_bundles"][0]["post_id"] = 100 + spot_id
+        spot["post_bundles"][0]["comments"][0]["comment_id"] = 200 + spot_id
+        spots.append(spot)
+    payload["spots"] = spots
+    request = CongestionAnalysisRequest.model_validate(payload)
+    started: list[int] = []
+    lock = Lock()
+    first_three_started = Event()
+    release = Event()
+    siblings_finished = Event()
+    finished_count = 0
+
+    class UnexpectedAnalyzer:
+        def analyze(
+            self, spot: CongestionSpotInput, as_of: datetime
+        ) -> CongestionResult:
+            nonlocal finished_count
+            with lock:
+                started.append(spot.spot_id)
+                if len(started) == 3:
+                    first_three_started.set()
+            assert first_three_started.wait(timeout=5)
+            if spot.spot_id == 1:
+                raise RuntimeError("unexpected analyzer bug")
+            try:
+                assert release.wait(timeout=5)
+            finally:
+                if spot.spot_id in (2, 3):
+                    with lock:
+                        finished_count += 1
+                        if finished_count == 2:
+                            siblings_finished.set()
+            return CongestionResult(congestion_level="LOW", report_count=0, causes=[])
+
+    with ThreadPoolExecutor(max_workers=1) as caller:
+        future = caller.submit(analyze_request, request, UnexpectedAnalyzer())
+        try:
+            assert first_three_started.wait(timeout=1.5)
+            with pytest.raises(RuntimeError, match="unexpected analyzer bug"):
+                future.result(timeout=1.5)
+        finally:
+            release.set()
+    assert siblings_finished.wait(timeout=5)
+    assert sorted(started) == [1, 2, 3]
 
 
 def test_all_spots_fail_with_fixed_error_and_http_200(payload: dict[str, Any]) -> None:
