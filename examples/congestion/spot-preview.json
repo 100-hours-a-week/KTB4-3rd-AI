@@ -1,0 +1,67 @@
+{
+  "request": {
+    "request_id": "spot-preview-1",
+    "as_of": "2026-10-12T12:00:00+09:00",
+    "spots": [
+      {
+        "spot_id": 7,
+        "post_bundles": [
+          {
+            "post_id": 1,
+            "title": "행사 상황",
+            "content": "지금 행사 때문에 사람이 엄청 많아요.",
+            "author_key": "repeat",
+            "created_at": "2026-10-12T11:15:00+09:00",
+            "comments": [
+              {
+                "comment_id": 1,
+                "content": "지금 신호기 고장 때문에 사람들이 기다리고 있어요.",
+                "author_key": "cause-only",
+                "created_at": "2026-10-12T11:57:00+09:00"
+              },
+              {
+                "comment_id": 2,
+                "content": "오늘 저녁 뭐 먹을까요?",
+                "author_key": "unrelated-comment",
+                "created_at": "2026-10-12T11:58:00+09:00"
+              }
+            ]
+          },
+          {
+            "post_id": 3,
+            "title": "현재 상황",
+            "content": "지금은 한산해요.",
+            "author_key": "repeat",
+            "created_at": "2026-10-12T11:55:00+09:00",
+            "comments": []
+          },
+          {
+            "post_id": 4,
+            "title": "일반 글",
+            "content": "추천하는 영화가 있나요?",
+            "author_key": "unrelated-post",
+            "created_at": "2026-10-12T11:59:00+09:00",
+            "comments": []
+          }
+        ]
+      }
+    ]
+  },
+  "window_minutes": 60,
+  "relevance_policy": {"exclude_below": 0.2, "related_at_or_above": 0.8},
+  "scores": [
+    {"signal_type": "post", "signal_id": 1, "probability": 0.95},
+    {"signal_type": "comment", "signal_id": 1, "probability": 0.5},
+    {"signal_type": "comment", "signal_id": 2, "probability": 0.01},
+    {"signal_type": "post", "signal_id": 3, "probability": 0.9},
+    {"signal_type": "post", "signal_id": 4, "probability": 0.01}
+  ],
+  "model_output": {
+    "signals": [
+      {"signal_type": "post", "signal_id": 3, "congestion_level": "LOW", "causes": []},
+      {"signal_type": "comment", "signal_id": 1, "congestion_level": null, "causes": ["BREAKDOWN"]},
+      {"signal_type": "post", "signal_id": 1, "congestion_level": "HIGH", "causes": ["EVENT"]}
+    ],
+    "summary": "행사와 신호기 고장으로 인한 대기, 한산하다는 제보가 함께 있습니다."
+  }
+}

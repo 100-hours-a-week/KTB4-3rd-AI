@@ -2,11 +2,11 @@
 
 from collections import Counter
 from collections.abc import Callable, Hashable, Iterable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal, Protocol, TypeVar
 
 from .models import CauseCode, CongestionCause, CongestionLevel, CongestionResult
-from .preprocessor import is_in_window
+from .preprocessor import WINDOW, is_in_window
 
 Stage = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -54,8 +54,12 @@ def _causes_of(signal: JudgedSignal) -> frozenset[CauseCode] | None:
     return signal.causes or None
 
 
-def aggregate_signals(signals: Iterable[JudgedSignal], as_of: datetime) -> CongestionResult:
-    current = [signal for signal in signals if is_in_window(signal.created_at, as_of)]
+def aggregate_signals(
+    signals: Iterable[JudgedSignal], as_of: datetime, *, window: timedelta = WINDOW
+) -> CongestionResult:
+    if window <= timedelta(0):
+        raise ValueError("window must be positive")
+    current = [signal for signal in signals if is_in_window(signal.created_at, as_of, window)]
     for signal in current:
         level_value: object = signal.congestion_level
         if level_value == "UNKNOWN" or "UNKNOWN" in signal.causes:

@@ -70,6 +70,25 @@ def test_window_has_open_lower_and_closed_upper_boundary() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("minutes", "expected_count"), [(10, 0), (60, 1)]
+)
+def test_explicit_window_controls_aggregation(minutes: int, expected_count: int) -> None:
+    result = aggregator.aggregate_signals(
+        [Judgment("off-peak", AS_OF - timedelta(minutes=45), "MEDIUM")],
+        AS_OF,
+        window=timedelta(minutes=minutes),
+    )
+    assert result.report_count == expected_count
+    assert result.congestion_level == ("MEDIUM" if expected_count else "UNKNOWN")
+
+
+@pytest.mark.parametrize("minutes", [0, -1])
+def test_aggregation_rejects_nonpositive_window(minutes: int) -> None:
+    with pytest.raises(ValueError, match="window"):
+        aggregator.aggregate_signals([], AS_OF, window=timedelta(minutes=minutes))
+
+
 def test_stage_tie_returns_unknown_and_keeps_voter_count() -> None:
     assert aggregate(
         Judgment("a", AS_OF, "LOW"), Judgment("b", AS_OF, "HIGH")
