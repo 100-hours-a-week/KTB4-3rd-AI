@@ -39,7 +39,11 @@ def test_mock_preview_shows_selection_original_metadata_and_explicit_window_aggr
         {"signal_type": "post", "signal_id": 3},
     ]
     assert [item["status"] for item in result["relevance"]] == [
-        "RELATED", "UNCERTAIN", "UNRELATED", "RELATED", "UNRELATED"
+        "RELATED",
+        "UNCERTAIN",
+        "UNRELATED",
+        "RELATED",
+        "UNRELATED",
     ]
     assert result["judgments"][0]["author_key"] == "repeat"
     assert result["judgments"][0]["created_at"] == "2026-10-12T11:15:00+09:00"
@@ -51,8 +55,9 @@ def test_mock_preview_shows_selection_original_metadata_and_explicit_window_aggr
             {"cause_code": "EVENT", "report_count": 1},
         ],
     }
-    assert result["summary_draft"] == (
-        "행사와 신호기 고장으로 인한 대기, 한산하다는 제보가 함께 있습니다."
+    assert result["summary"] == (
+        "제보 기준 혼잡도는 한산이며, 혼잡 제보자는 1명입니다. "
+        "제보된 원인은 차량·설비 고장(1명), 행사·공연·경기(1명)입니다."
     )
 
 
@@ -75,7 +80,7 @@ def test_preview_without_targets_skips_extraction(tmp_path: Path, empty_kind: st
     result = json.loads(command.stdout)
     assert result["extraction_calls"] == 0
     assert result["llm_input"] is None
-    assert result["summary_draft"] is None
+    assert result["summary"] == "혼잡 단계를 판단할 유효 제보가 없습니다."
     assert result["aggregate"] == {"congestion_level": "UNKNOWN", "report_count": 0, "causes": []}
 
 

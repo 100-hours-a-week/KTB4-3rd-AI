@@ -1,24 +1,36 @@
 """스팟별 분석기 경계와 요청 결과 조립."""
 
+import os
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from ...core.exceptions import ModelNotReady, UpstreamError
 from .aggregator import aggregate_signals
-from .extractor import ModelOutputInvalid, assess_bundle, call_api_model
+from .decisions import DecisionsRelevanceScorer
+from .extractor import ModelOutputInvalid, call_api_model
 from .models import (
     CongestionAnalysisRequest,
     CongestionAnalysisResponse,
     CongestionCause,
     CongestionResult,
+    CongestionResultWithSummary,
     CongestionSpotFailure,
     CongestionSpotInput,
     CongestionSpotResult,
     CongestionSpotSuccess,
 )
-from .preprocessor import select_analyzable_bundles
+from .preprocessor import prepare_spot
+from .relevance import (
+    RelevanceOutputInvalid,
+    RelevancePolicy,
+    RelevanceScorer,
+    classify_spot,
+)
+from .spot_extractor import assess_spot
+from .spot_input import build_spot_input
+from .summarizer import summarize_result
 
 MAX_CONCURRENT_SPOTS = 3
 
@@ -29,14 +41,16 @@ class AnalysisError(Exception):
 
 class CongestionAnalyzer(Protocol):
     def analyze(
-        self, spot: CongestionSpotInput, as_of: datetime
+        self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
     ) -> CongestionResult: ...
 
 
 class FakeCongestionAnalyzer:
     """테스트에서만 사용하는 고정 예시 분석기."""
 
-    def analyze(self, spot: CongestionSpotInput, as_of: datetime) -> CongestionResult:
+    def analyze(
+        self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
+    ) -> CongestionResult:
         return CongestionResult(
             congestion_level="MEDIUM",
             report_count=1,
@@ -45,19 +59,49 @@ class FakeCongestionAnalyzer:
 
 
 class LLMCongestionAnalyzer:
-    """한 스팟 안의 게시글 묶음을 순차 판정하고 독립 집계 함수에 연결한다."""
+    """명시 창으로 선별·분류한 스팟을 한 번 추출하고 코드로 집계한다."""
 
-    def __init__(self, complete: Callable[[str], str] = call_api_model) -> None:
+    def __init__(
+        self,
+        *,
+        score: RelevanceScorer | None = None,
+        policy: RelevancePolicy | None = None,
+        complete: Callable[[str], str] = call_api_model,
+    ) -> None:
+        if (score is None) != (policy is None):
+            raise ValueError("score and policy must be provided together")
+        self._score = score
+        self._policy = policy
         self._complete = complete
 
-    def analyze(self, spot: CongestionSpotInput, as_of: datetime) -> CongestionResult:
-        signals = []
-        for bundle in select_analyzable_bundles(spot, as_of):
-            try:
-                signals.extend(assess_bundle(bundle, as_of, self._complete))
-            except (ModelNotReady, UpstreamError, ModelOutputInvalid) as exc:
-                raise AnalysisError("congestion analysis failed") from exc
-        return aggregate_signals(signals, as_of)
+    def analyze(
+        self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
+    ) -> CongestionResult:
+        prepared = prepare_spot(spot, as_of, window)
+        if not prepared.candidates:
+            return aggregate_signals([], as_of, window=window)
+        try:
+            score, policy = self._configured_scorer()
+            classified = classify_spot(prepared, score, policy)
+            assessed = assess_spot(build_spot_input(classified), self._complete)
+        except (ModelNotReady, UpstreamError, ModelOutputInvalid, RelevanceOutputInvalid) as exc:
+            raise AnalysisError("congestion analysis failed") from exc
+        return aggregate_signals(assessed.signals, as_of, window=window)
+
+    def _configured_scorer(self) -> tuple[RelevanceScorer, RelevancePolicy]:
+        if self._score is not None and self._policy is not None:
+            return self._score, self._policy
+        try:
+            policy = RelevancePolicy(
+                exclude_below=float(os.environ["CONGESTION_RELEVANCE_EXCLUDE_BELOW"]),
+                related_at_or_above=float(os.environ["CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE"]),
+            )
+            score = DecisionsRelevanceScorer(
+                timeout=float(os.environ["CONGESTION_DECISIONS_TIMEOUT_SECONDS"])
+            )
+        except (KeyError, ValueError) as exc:
+            raise ModelNotReady("congestion relevance configuration is not ready") from exc
+        return score, policy
 
 
 def get_analyzer() -> CongestionAnalyzer:
@@ -69,15 +113,23 @@ def analyze_request(
 ) -> CongestionAnalysisResponse:
     def analyze_spot(spot: CongestionSpotInput) -> CongestionSpotResult:
         if not spot.post_bundles:
-            result = CongestionResult(
-                congestion_level="UNKNOWN", report_count=0, causes=[]
-            )
+            result = CongestionResult(congestion_level="UNKNOWN", report_count=0, causes=[])
         else:
             try:
-                result = analyzer.analyze(spot, request.as_of)
+                result = analyzer.analyze(
+                    spot, request.as_of, timedelta(minutes=request.window_minutes)
+                )
             except AnalysisError:
                 return CongestionSpotFailure(spot_id=spot.spot_id)
-        return CongestionSpotSuccess(spot_id=spot.spot_id, result=result)
+        return CongestionSpotSuccess(
+            spot_id=spot.spot_id,
+            result=CongestionResultWithSummary(
+                congestion_level=result.congestion_level,
+                report_count=result.report_count,
+                causes=result.causes,
+                summary=summarize_result(result),
+            ),
+        )
 
     executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_SPOTS)
     pending: dict[Future[CongestionSpotResult], int] = {}

@@ -1,4 +1,4 @@
-"""스팟별 단일 호출과 개별 판정·요약 초안의 검증을 확인한다."""
+"""스팟별 단일 호출과 개별 단계·원인 판정의 검증을 확인한다."""
 
 import json
 from datetime import datetime
@@ -62,7 +62,6 @@ def output() -> dict[str, Any]:
                 "causes": ["EVENT"],
             },
         ],
-        "summary": "행사로 인한 대기와 현재 한산하다는 제보가 있습니다.",
     }
 
 
@@ -84,7 +83,6 @@ def test_one_call_matches_reordered_results_to_original_targets(model_input: Spo
         ("repeat", "2026-10-12T11:15:00+09:00", "MEDIUM", frozenset({"EVENT"})),
         ("repeat", "2026-10-12T11:55:00+09:00", "LOW", frozenset()),
     ]
-    assert result.summary_draft == "행사로 인한 대기와 현재 한산하다는 제보가 있습니다."
 
 
 @pytest.mark.parametrize("case", ["missing", "duplicate", "extra", "context", "wrong_type"])
@@ -127,20 +125,11 @@ def test_invalid_signal_fields_are_rejected(
         assess_spot(model_input, lambda _: json.dumps(body))
 
 
-@pytest.mark.parametrize("summary", ["", " \n ", 42, [], None])
-def test_valid_judgments_require_nonblank_summary_draft(
-    model_input: SpotLLMInput, summary: Any
-) -> None:
-    body = dict(output(), summary=summary)
-    with pytest.raises(ModelOutputInvalid):
-        assess_spot(model_input, lambda _: json.dumps(body))
-
-
-@pytest.mark.parametrize("case", ["invalid_json", "missing_summary", "extra_field", "non_text"])
+@pytest.mark.parametrize("case", ["invalid_json", "missing_signals", "extra_field", "non_text"])
 def test_invalid_spot_envelope_is_rejected(model_input: SpotLLMInput, case: str) -> None:
     body = output()
-    if case == "missing_summary":
-        body.pop("summary")
+    if case == "missing_signals":
+        body.pop("signals")
     elif case == "extra_field":
         body["report_count"] = 999
     raw: Any = json.dumps(body)
@@ -161,23 +150,11 @@ def test_no_stage_supports_cause_only_or_no_valid_evidence(
         signal["congestion_level"] = None
         signal["causes"] = []
     body["signals"][0]["causes"] = ["BREAKDOWN"] if has_cause else []
-    body["summary"] = "고장으로 기다린다는 제보가 있습니다." if has_cause else None
 
     result = assess_spot(model_input, lambda _: json.dumps(body))
 
     assert all(signal.congestion_level is None for signal in result.signals)
     assert result.signals[1].causes == (frozenset({"BREAKDOWN"}) if has_cause else frozenset())
-    assert result.summary_draft == body["summary"]
-
-
-def test_summary_cannot_invent_evidence_when_all_judgments_are_empty(
-    model_input: SpotLLMInput,
-) -> None:
-    body = output()
-    for signal in body["signals"]:
-        signal.update(congestion_level=None, causes=[])
-    with pytest.raises(ModelOutputInvalid):
-        assess_spot(model_input, lambda _: json.dumps(body))
 
 
 def test_empty_input_skips_model_call() -> None:
@@ -186,7 +163,6 @@ def test_empty_input_skips_model_call() -> None:
 
     result = assess_spot(None, unexpected)
     assert result.signals == ()
-    assert result.summary_draft is None
 
 
 def test_upstream_failure_is_not_retried(model_input: SpotLLMInput) -> None:

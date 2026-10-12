@@ -137,6 +137,7 @@ def test_live_judgment_against_decision_record(
             }
         ],
     }
+    data["window_minutes"] = 10
     parsed = CongestionAnalysisRequest.model_validate(data)
     started = perf_counter()
     try:

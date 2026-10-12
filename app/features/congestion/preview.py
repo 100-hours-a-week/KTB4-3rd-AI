@@ -1,4 +1,4 @@
-"""HTTP 연결 전 한 스팟의 내부 흐름을 눈으로 확인하는 개발용 명령."""
+"""한 스팟의 내부 흐름을 눈으로 확인하는 개발용 명령."""
 
 import argparse
 import json
@@ -20,6 +20,7 @@ from .preprocessor import PreparedSpot, prepare_spot
 from .relevance import RelevancePolicy, RelevanceScorer, SignalKey, classify_spot
 from .spot_extractor import assess_spot
 from .spot_input import build_spot_input
+from .summarizer import summarize_result
 
 
 class PreviewScore(ApiModel):
@@ -32,7 +33,6 @@ class PreviewCase(ApiModel):
     """요청과 모의 모델 응답을 함께 담으며 외부 API 계약과 구분한다."""
 
     request: CongestionAnalysisRequest
-    window_minutes: Literal[10, 60]
     relevance_policy: RelevancePolicy
     scores: list[PreviewScore]
     model_output: dict[str, Any]
@@ -47,7 +47,7 @@ def preview_spot(
     """실제 전처리·분류·검증·집계 함수를 실행하고 중간값을 노출한다."""
     if len(case.request.spots) != 1:
         raise ValueError("preview requires exactly one spot")
-    window = timedelta(minutes=case.window_minutes)
+    window = timedelta(minutes=case.request.window_minutes)
     started = perf_counter()
     prepared = prepare_spot(case.request.spots[0], case.request.as_of, window)
     classified = classify_spot(prepared, score, policy)
@@ -63,7 +63,7 @@ def preview_spot(
     aggregate = aggregate_signals(assessed.signals, case.request.as_of, window=window)
     return {
         "spot_id": prepared.spot_id,
-        "window_minutes": case.window_minutes,
+        "window_minutes": case.request.window_minutes,
         "relevance_policy": {
             "exclude_below": policy.exclude_below,
             "related_at_or_above": policy.related_at_or_above,
@@ -94,7 +94,7 @@ def preview_spot(
             )
         ],
         "aggregate": aggregate.model_dump(),
-        "summary_draft": assessed.summary_draft,
+        "summary": summarize_result(aggregate),
         "elapsed_seconds": round(perf_counter() - started, 3),
     }
 
@@ -131,6 +131,7 @@ def main() -> int:
                 return scores
 
             score = mock_score
+
             def mock_complete(_prompt: str) -> str:
                 return json.dumps(case.model_output, ensure_ascii=False)
 

@@ -30,6 +30,12 @@ def require_iso_timestamp(value: object) -> str:
     return value
 
 
+def require_window_minutes(value: int) -> int:
+    if value not in (10, 60):
+        raise ValueError("window_minutes must be 10 or 60")
+    return value
+
+
 PositiveId = Annotated[int, Field(strict=True, gt=0)]
 ReportCount = Annotated[int, Field(strict=True, ge=0)]
 NonBlankText = Annotated[
@@ -40,6 +46,11 @@ TitleText = Annotated[NonBlankText, Field(max_length=30)]
 PostText = Annotated[NonBlankText, Field(max_length=280)]
 CommentText = Annotated[NonBlankText, Field(max_length=280)]
 Timestamp = Annotated[AwareDatetime, BeforeValidator(require_iso_timestamp)]
+WindowMinutes = Annotated[
+    int,
+    Field(strict=True, json_schema_extra={"enum": [10, 60]}),
+    AfterValidator(require_window_minutes),
+]
 CongestionLevel = Literal["LOW", "MEDIUM", "HIGH", "UNKNOWN"]
 CauseCode = Literal[
     "RUSH_HOUR",
@@ -84,6 +95,7 @@ class CongestionSpotInput(ApiModel):
 class CongestionAnalysisRequest(ApiModel):
     request_id: KeyText
     as_of: Timestamp
+    window_minutes: WindowMinutes = Field(description="Spring이 적용한 집계 창(분): 10 또는 60")
     spots: Annotated[list[CongestionSpotInput], Field(min_length=1, max_length=20)]
 
     @model_validator(mode="after")
@@ -123,10 +135,16 @@ class CongestionResult(ApiModel):
     causes: list[CongestionCause]
 
 
+class CongestionResultWithSummary(CongestionResult):
+    """코드 집계가 끝난 뒤 생성한 요약을 포함하는 성공 응답."""
+
+    summary: NonBlankText
+
+
 class CongestionSpotSuccess(ApiModel):
     spot_id: PositiveId
     analysis_status: Literal["SUCCESS"] = "SUCCESS"
-    result: CongestionResult
+    result: CongestionResultWithSummary
 
 
 class CongestionSpotFailure(ApiModel):

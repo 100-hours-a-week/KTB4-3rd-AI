@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import Event, Lock
 from typing import Any
 
@@ -41,6 +41,7 @@ def payload() -> dict[str, Any]:
     return {
         "request_id": "req-001",
         "as_of": "2026-10-07T15:00:00+09:00",
+        "window_minutes": 10,
         "spots": [
             {
                 "spot_id": 1,
@@ -98,6 +99,8 @@ def test_valid_request_returns_fake_result_and_empty_spot(
                     "congestion_level": "MEDIUM",
                     "report_count": 1,
                     "causes": [{"cause_code": "EVENT", "report_count": 1}],
+                    "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. "
+                    "제보된 원인은 행사·공연·경기(1명)입니다.",
                 },
             },
             {
@@ -107,6 +110,7 @@ def test_valid_request_returns_fake_result_and_empty_spot(
                     "congestion_level": "UNKNOWN",
                     "report_count": 0,
                     "causes": [],
+                    "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
                 },
             },
         ],
@@ -116,6 +120,7 @@ def test_valid_request_returns_fake_result_and_empty_spot(
 FIELDS = [
     ("request", "request_id"),
     ("request", "as_of"),
+    ("request", "window_minutes"),
     ("request", "spots"),
     ("spot", "spot_id"),
     ("spot", "post_bundles"),
@@ -134,9 +139,7 @@ FIELDS = [
 
 @pytest.mark.parametrize(("level", "field"), FIELDS)
 @pytest.mark.parametrize("mode", ["missing", "null"])
-def test_required_fields(
-    payload: dict[str, Any], level: str, field: str, mode: str
-) -> None:
+def test_required_fields(payload: dict[str, Any], level: str, field: str, mode: str) -> None:
     target = node(payload, level)
     if mode == "missing":
         del target[field]
@@ -177,9 +180,7 @@ def test_ids_are_strict_positive_integers(
         "comment_across_posts",
     ],
 )
-def test_duplicate_ids_rejected_across_request(
-    payload: dict[str, Any], duplicate: str
-) -> None:
+def test_duplicate_ids_rejected_across_request(payload: dict[str, Any], duplicate: str) -> None:
     spot = node(payload, "spot")
     post = node(payload, "post")
     if duplicate == "spot":
@@ -263,9 +264,7 @@ def test_skeleton_still_does_not_filter_old_content_or_judge_text(
 
 
 @pytest.mark.parametrize("level", ["post", "comment"])
-def test_future_signal_rejected_relative_to_as_of(
-    payload: dict[str, Any], level: str
-) -> None:
+def test_future_signal_rejected_relative_to_as_of(payload: dict[str, Any], level: str) -> None:
     # 15:00+09:00은 06:00Z와 같은 시각이다. 문자열이 아닌 실제 시각을 비교한다.
     node(payload, level)["created_at"] = "2026-10-07T06:00:01Z"
     assert_invalid(payload)
@@ -316,6 +315,7 @@ def test_empty_comments_and_stateless_requests(payload: dict[str, Any]) -> None:
         "congestion_level": "UNKNOWN",
         "report_count": 0,
         "causes": [],
+        "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
     }
 
 
@@ -324,15 +324,14 @@ def test_analyzer_replacement_preserves_input_and_isolates_spot_failure(
 ) -> None:
     class ReplacementAnalyzer:
         def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime
+            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
         ) -> CongestionResult:
             assert as_of == datetime.fromisoformat("2026-10-07T15:00:00+09:00")
+            assert window == timedelta(minutes=10)
             assert spot.post_bundles[0].title == "현재 상황"
             assert spot.post_bundles[0].content == "  사람이 많아요.  "
             if spot.spot_id == 1:
-                raise AnalysisError(
-                    "private upstream details must not reach the client"
-                )
+                raise AnalysisError("private upstream details must not reach the client")
             assert spot.spot_id == 3  # 빈 스팟은 분석기를 거쳐서는 안 된다.
             return CongestionResult(congestion_level="LOW", report_count=2, causes=[])
 
@@ -365,12 +364,18 @@ def test_analyzer_replacement_preserves_input_and_isolates_spot_failure(
                     "congestion_level": "UNKNOWN",
                     "report_count": 0,
                     "causes": [],
+                    "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
                 },
             },
             {
                 "spot_id": 3,
                 "analysis_status": "SUCCESS",
-                "result": {"congestion_level": "LOW", "report_count": 2, "causes": []},
+                "result": {
+                    "congestion_level": "LOW",
+                    "report_count": 2,
+                    "causes": [],
+                    "summary": "제보 기준 혼잡도는 한산이며, 혼잡 제보자는 2명입니다.",
+                },
             },
         ],
     }
@@ -395,7 +400,7 @@ def test_three_spots_run_together_without_reordering_results(payload: dict[str, 
 
     class WaitingAnalyzer:
         def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime
+            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
         ) -> CongestionResult:
             nonlocal active, peak_active
             with lock:
@@ -409,9 +414,7 @@ def test_three_spots_run_together_without_reordering_results(payload: dict[str, 
             finally:
                 with lock:
                     active -= 1
-            return CongestionResult(
-                congestion_level="MEDIUM", report_count=spot.spot_id, causes=[]
-            )
+            return CongestionResult(congestion_level="MEDIUM", report_count=spot.spot_id, causes=[])
 
     with ThreadPoolExecutor(max_workers=1) as caller:
         future = caller.submit(analyze_request, request, WaitingAnalyzer())
@@ -448,7 +451,7 @@ def test_unexpected_error_stops_scheduling_new_spots(payload: dict[str, Any]) ->
 
     class UnexpectedAnalyzer:
         def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime
+            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
         ) -> CongestionResult:
             nonlocal finished_count
             with lock:
@@ -483,7 +486,7 @@ def test_unexpected_error_stops_scheduling_new_spots(payload: dict[str, Any]) ->
 def test_all_spots_fail_with_fixed_error_and_http_200(payload: dict[str, Any]) -> None:
     class FailingAnalyzer:
         def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime
+            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
         ) -> CongestionResult:
             raise AnalysisError("private details")
 
@@ -508,7 +511,7 @@ def test_all_spots_fail_with_fixed_error_and_http_200(payload: dict[str, Any]) -
 def test_invalid_request_never_reaches_analyzer(payload: dict[str, Any]) -> None:
     class UnexpectedAnalyzer:
         def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime
+            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
         ) -> CongestionResult:
             pytest.fail("invalid input reached analyzer")
 

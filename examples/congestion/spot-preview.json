@@ -45,23 +45,64 @@
           }
         ]
       }
-    ]
+    ],
+    "window_minutes": 60
   },
-  "window_minutes": 60,
-  "relevance_policy": {"exclude_below": 0.2, "related_at_or_above": 0.8},
+  "relevance_policy": {
+    "exclude_below": 0.2,
+    "related_at_or_above": 0.8
+  },
   "scores": [
-    {"signal_type": "post", "signal_id": 1, "probability": 0.95},
-    {"signal_type": "comment", "signal_id": 1, "probability": 0.5},
-    {"signal_type": "comment", "signal_id": 2, "probability": 0.01},
-    {"signal_type": "post", "signal_id": 3, "probability": 0.9},
-    {"signal_type": "post", "signal_id": 4, "probability": 0.01}
+    {
+      "signal_type": "post",
+      "signal_id": 1,
+      "probability": 0.95
+    },
+    {
+      "signal_type": "comment",
+      "signal_id": 1,
+      "probability": 0.5
+    },
+    {
+      "signal_type": "comment",
+      "signal_id": 2,
+      "probability": 0.01
+    },
+    {
+      "signal_type": "post",
+      "signal_id": 3,
+      "probability": 0.9
+    },
+    {
+      "signal_type": "post",
+      "signal_id": 4,
+      "probability": 0.01
+    }
   ],
   "model_output": {
     "signals": [
-      {"signal_type": "post", "signal_id": 3, "congestion_level": "LOW", "causes": []},
-      {"signal_type": "comment", "signal_id": 1, "congestion_level": null, "causes": ["BREAKDOWN"]},
-      {"signal_type": "post", "signal_id": 1, "congestion_level": "HIGH", "causes": ["EVENT"]}
-    ],
-    "summary": "행사와 신호기 고장으로 인한 대기, 한산하다는 제보가 함께 있습니다."
+      {
+        "signal_type": "post",
+        "signal_id": 3,
+        "congestion_level": "LOW",
+        "causes": []
+      },
+      {
+        "signal_type": "comment",
+        "signal_id": 1,
+        "congestion_level": null,
+        "causes": [
+          "BREAKDOWN"
+        ]
+      },
+      {
+        "signal_type": "post",
+        "signal_id": 1,
+        "congestion_level": "HIGH",
+        "causes": [
+          "EVENT"
+        ]
+      }
+    ]
   }
 }
