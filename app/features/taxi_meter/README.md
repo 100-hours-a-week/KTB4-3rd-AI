@@ -12,4 +12,4 @@
 
 `image.py`는 사진 URL을 받아 온다. 파일이 비었거나 5MB를 넘거나 JPEG, PNG가 아니면 오류를 낸다.
 
-`models.py`는 요청 필드 `image_URL`, `ride_channel_id`와 응답 필드 `success`, `cost`를 정의한다.
+`models.py`는 요청 필드 `image_URL`과 응답 필드 `success`, `cost`를 정의한다.

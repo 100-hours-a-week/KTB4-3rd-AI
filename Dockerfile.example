@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+# 예시 파일이다. 실제 배포용 Dockerfile이 아니다. 배포 전에 PYTHON_IMAGE를 검토한 digest로 고정한다.
+#
+# 빌드:  docker build -f Dockerfile.example -t backend-fastapi .
+#        로컬 모델까지 넣으려면 --build-arg EXTRAS=local, Modal을 쓰려면 --build-arg EXTRAS=modal
+# 실행:  docker run --env-file .env -p 8000:8000 backend-fastapi
+#        OPENAI_API_KEY, IMAGE_DEVICE 등은 이미지에 넣지 않고 실행할 때 주입한다.
+ARG PYTHON_IMAGE=python:3.12-slim
+
+FROM ${PYTHON_IMAGE} AS build
+ARG EXTRAS=""
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+WORKDIR /build
+RUN python -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+COPY pyproject.toml ./
+COPY app ./app
+RUN pip install ".${EXTRAS:+[$EXTRAS]}"
+
+FROM ${PYTHON_IMAGE} AS runtime
+ENV PATH=/opt/venv/bin:$PATH \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+RUN groupadd --system --gid 10001 app && \
+    useradd --system --uid 10001 --gid app --home-dir /app app
+WORKDIR /app
+COPY --from=build /opt/venv /opt/venv
+COPY --chown=app:app app ./app
+USER app
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

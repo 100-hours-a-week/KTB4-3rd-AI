@@ -61,7 +61,7 @@ class OcrEngine:
                 from paddleocr import PaddleOCR
             except ImportError as exc:
                 logger.exception("paddleocr is not installed")
-                raise ModelNotReady("ocr model is not ready") from exc
+                raise ModelNotReady() from exc
             try:
                 self.pipeline = PaddleOCR(
                     text_detection_model_name=DET,
@@ -74,5 +74,5 @@ class OcrEngine:
                 )
             except Exception as exc:
                 logger.exception("ocr model load failed")
-                raise ModelNotReady("ocr model is not ready") from exc
+                raise ModelNotReady() from exc
             return self.pipeline

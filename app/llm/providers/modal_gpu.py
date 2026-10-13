@@ -25,7 +25,7 @@ class ModalEngine:
                     import modal
                 except ImportError as exc:
                     logger.exception("modal is not installed")
-                    raise ModelNotReady("modal is not ready") from exc
+                    raise ModelNotReady() from exc
                 self.remote = modal.Cls.from_name(APP, CLS)()
             return self.remote
 

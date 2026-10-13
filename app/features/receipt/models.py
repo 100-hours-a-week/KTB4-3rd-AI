@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 class ReceiptRequest(BaseModel):
     image_URL: str
-    ride_channel_id: str
 
 
 class ReceiptResponse(BaseModel):
