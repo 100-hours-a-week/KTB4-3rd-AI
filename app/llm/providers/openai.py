@@ -20,7 +20,7 @@ class OpenAIEngine:
         key = os.environ.get("OPENAI_API_KEY")
         if not key:
             logger.error("openai api key is missing")
-            raise ModelNotReady("api model is not ready")
+            raise ModelNotReady()
 
         content: list[dict] = [{"type": "input_text", "text": prompt}]
         if image is not None:

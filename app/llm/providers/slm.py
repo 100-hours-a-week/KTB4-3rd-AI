@@ -55,7 +55,7 @@ class SlmEngine:
                 from transformers import AutoModelForSequenceClassification, AutoTokenizer
             except ImportError as exc:
                 logger.exception("torch or transformers is not installed")
-                raise ModelNotReady("open model is not ready") from exc
+                raise ModelNotReady() from exc
             try:
                 tokenizer = AutoTokenizer.from_pretrained(REPO, subfolder=SUBFOLDER)
                 tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
@@ -69,7 +69,7 @@ class SlmEngine:
                     text_config.pad_token_id = tokenizer.pad_token_id
             except Exception as exc:
                 logger.exception("slm model load failed")
-                raise ModelNotReady("open model is not ready") from exc
+                raise ModelNotReady() from exc
             self.tokenizer = tokenizer
             self.template = getattr(model.config, "nli_template", None) or TEMPLATE
             self.model = model

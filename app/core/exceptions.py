@@ -1,12 +1,12 @@
 # 클라이언트에 주는 message는 고정 문구다. 호스트, 상태 코드, 바이트 수는 로그에만 남긴다.
 #
 # 422 REQUEST_INVALID      요청 필드가 없음
-# 422 IMAGE_FETCH_FAILED   이미지 다운로드 실패
+# 422 IMAGE_FETCH_FAILED   이미지 다운로드 실패. 잘못된 URL, 5초 초과 포함
 # 422 IMAGE_SIZE_INVALID   비었거나 5MB 초과
 # 422 IMAGE_TYPE_INVALID   jpeg, png가 아님
-# 422 JUDGE_PARSE_FAILED   모델 출력이 JSON이 아니거나 필요한 값이 없음
+# 422 JUDGE_PARSE_FAILED   모델 출력이 JSON이 아니거나 필요한 값이 없음. 영수증이 이체 완료가 아닐 때도 여기로 온다
 # 502 UPSTREAM_FAILED      OpenAI 호출 실패 또는 응답 형식이 다름
-# 503 MODEL_NOT_READY      키, 가중치, 패키지가 없음. message에 api, ocr, open, modal 중 어디인지 적는다.
+# 503 MODEL_NOT_READY      키, 가중치, 패키지가 없음. api, ocr, open, modal 중 어디인지는 로그에만 남긴다.
 # 500 INTERNAL             등록되지 않은 모델이거나 추론 중 예외
 
 
