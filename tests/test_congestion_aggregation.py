@@ -164,6 +164,24 @@ def test_same_timestamp_identical_votes_count_author_once() -> None:
     }
 
 
+def test_trace_keeps_original_source_indices_after_window_filtering() -> None:
+    trace_aggregate = getattr(aggregator, "aggregate_with_trace", None)
+    assert callable(trace_aggregate)
+    trace = trace_aggregate(
+        [
+            Judgment("expired", CUTOFF, "HIGH"),
+            Judgment("a", AS_OF - timedelta(minutes=3), "HIGH", frozenset({"EVENT"})),
+            Judgment("a", AS_OF, "LOW"),
+        ],
+        AS_OF,
+    )
+
+    assert trace.stage_votes[0].signal_indices == (2,)
+    assert trace.cause_votes[0].signal_indices == (1,)
+    assert trace.stage_counts == {"LOW": 1, "MEDIUM": 0, "HIGH": 0}
+    assert trace.result.report_count == 1
+
+
 def test_each_cause_counts_distinct_authors() -> None:
     assert aggregate(
         Judgment("a", AS_OF, "HIGH", frozenset({"EVENT", "ROAD_TRAFFIC"})),
