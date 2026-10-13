@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Protocol
 
 from ...core.exceptions import ModelNotReady, UpstreamError
+from ...core.logging import get_logger
 from .aggregator import aggregate_signals
 from .decisions import DecisionsRelevanceScorer
 from .extractor import ModelOutputInvalid, call_api_model
@@ -31,6 +32,8 @@ from .relevance import (
 from .spot_extractor import assess_spot
 from .spot_input import build_spot_input
 from .summarizer import summarize_result
+
+logger = get_logger(__name__)
 
 MAX_CONCURRENT_SPOTS = 3
 
@@ -119,7 +122,13 @@ def analyze_request(
                 result = analyzer.analyze(
                     spot, request.as_of, timedelta(minutes=request.window_minutes)
                 )
-            except AnalysisError:
+            except AnalysisError as exc:
+                logger.warning(
+                    "congestion analysis failed: request_id=%r spot_id=%s error_type=%s",
+                    request.request_id,
+                    spot.spot_id,
+                    type(exc.__cause__ if exc.__cause__ is not None else exc).__name__,
+                )
                 return CongestionSpotFailure(spot_id=spot.spot_id)
         return CongestionSpotSuccess(
             spot_id=spot.spot_id,

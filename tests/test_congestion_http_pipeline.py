@@ -1,6 +1,7 @@
 """새 요청 창 계약과 Decisions·스팟 추출의 HTTP 연결을 검증한다."""
 
 import json
+import logging
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,11 @@ from fastapi.testclient import TestClient
 
 from app.features.congestion.decisions import DecisionsRelevanceScorer
 from app.features.congestion.relevance import RelevanceOutputInvalid, RelevancePolicy
-from app.features.congestion.service import LLMCongestionAnalyzer, get_analyzer
+from app.features.congestion.service import (
+    AnalysisError,
+    LLMCongestionAnalyzer,
+    get_analyzer,
+)
 from app.main import app
 
 
@@ -161,12 +166,25 @@ def test_missing_or_invalid_relevance_settings_fail_only_nonempty_spot(
     assert response.json()["spots"][1]["analysis_status"] == "SUCCESS"
 
 
-def test_relevance_failure_never_calls_extraction() -> None:
+@pytest.mark.parametrize(
+    ("error", "error_type"),
+    [
+        (RelevanceOutputInvalid("private provider details"), "RelevanceOutputInvalid"),
+        (AnalysisError("private provider details"), "AnalysisError"),
+    ],
+)
+def test_analysis_failure_logs_only_identifiers_and_type_without_calling_extraction(
+    caplog: pytest.LogCaptureFixture,
+    error: Exception,
+    error_type: str,
+) -> None:
     case_path = Path(__file__).resolve().parents[1] / "examples/congestion/spot-preview.json"
     data = json.loads(case_path.read_text())["request"]
+    data["request_id"] = "log-request-1\nforged"
+    data["spots"].append({"spot_id": 8, "post_bundles": []})
 
     def fail(_prepared: Any) -> dict[Any, float]:
-        raise RelevanceOutputInvalid("private provider details")
+        raise error
 
     def unexpected(_prompt: str) -> str:
         pytest.fail("관련성 실패 후 추출을 호출함")
@@ -176,9 +194,24 @@ def test_relevance_failure_never_calls_extraction() -> None:
     )
     app.dependency_overrides[get_analyzer] = lambda: analyzer
     try:
-        response = TestClient(app).post("/congestion-analyses", json=data)
+        with caplog.at_level(logging.WARNING, logger="app.features.congestion.service"):
+            response = TestClient(app).post("/congestion-analyses", json=data)
     finally:
         app.dependency_overrides.pop(get_analyzer, None)
     assert response.status_code == 200
-    assert response.json()["spots"][0]["analysis_status"] == "FAILED"
+    assert response.json()["spots"][0] == {
+        "spot_id": 7,
+        "analysis_status": "FAILED",
+        "result": None,
+        "code": "ANALYSIS_FAILED",
+        "message": "analysis failed",
+    }
+    assert response.json()["spots"][1]["analysis_status"] == "SUCCESS"
     assert "private" not in response.text
+    records = [record for record in caplog.records if record.name == "app.features.congestion.service"]
+    assert len(records) == 1
+    assert records[0].getMessage() == (
+        "congestion analysis failed: request_id='log-request-1\\nforged' "
+        f"spot_id=7 error_type={error_type}"
+    )
+    assert records[0].exc_info is None
