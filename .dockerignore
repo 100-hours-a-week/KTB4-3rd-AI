@@ -1,0 +1,38 @@
+# 시크릿 — 이미지에 절대 들어가면 안 된다
+.env
+.env.*
+!.env.example
+
+# VCS·CI·에디터
+.git
+.github
+.gitignore
+.DS_Store
+.vscode/
+.idea/
+.cursor/
+.codex/
+.claude/
+.grok/
+
+# Python 캐시·가상환경·빌드 산출물
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+.hypothesis/
+
+# 런타임에 필요 없는 것
+tests/
+*.md
+Dockerfile*
+uv.lock
