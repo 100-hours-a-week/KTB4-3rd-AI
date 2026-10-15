@@ -41,12 +41,23 @@ def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
     return {"cost": cost}
 
 
+def invalid(field: str, reason: str) -> JudgeParseError:
+    logger.warning("model output is not valid: field=%s reason=%s", field, reason)
+    return JudgeParseError()
+
+
 def model_api_run(image: ImageBytes) -> dict[str, int]:
     raw = llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
-        cost = amount_value(str(json.loads(raw)["cost"]))
-    except (KeyError, TypeError, ValueError) as exc:
-        logger.warning("model output is not valid: %s", type(exc).__name__)
-        raise JudgeParseError() from exc
+        value = json.loads(raw).get("cost")
+    except (ValueError, AttributeError) as exc:
+        raise invalid("cost", "not_json") from exc
+    if value is None:
+        # luna가 사진에서 요금을 읽지 못해 null을 줬다.
+        raise invalid("cost", "unreadable")
+    try:
+        cost = amount_value(str(value))
+    except ValueError as exc:
+        raise invalid("cost", "not_amount") from exc
     logger.info("judge parsed: cost=%s", cost)
     return {"cost": cost}

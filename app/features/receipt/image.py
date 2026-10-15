@@ -7,7 +7,7 @@ import httpx
 from PIL import Image
 
 from ...core.exceptions import ImageFetchError, ImageSizeError, ImageTypeError
-from ...core.logging import get_logger
+from ...core.logging import get_logger, http_reason
 from ...llm import ImageBytes
 
 logger = get_logger(__name__)
@@ -44,11 +44,13 @@ def download(image_url: str, host: str) -> bytes:
 
 def load_image(image_url: str) -> ImageBytes:
     host = url_host(image_url)
+    started = monotonic()
     try:
         content = download(image_url, host)
     except (httpx.HTTPError, httpx.InvalidURL) as exc:
         status = getattr(getattr(exc, "response", None), "status_code", None)
-        logger.warning("image download failed: host=%s status=%s", host, status)
+        ms = int((monotonic() - started) * 1000)
+        logger.warning("image download failed: host=%s reason=%s status=%s ms=%s", host, http_reason(exc), status, ms)
         raise ImageFetchError() from exc
 
     if not content:
@@ -60,14 +62,15 @@ def load_image(image_url: str) -> ImageBytes:
             width, height = img.size
             media_type = Image.MIME[img.format]
     except Exception as exc:
-        logger.warning("image must be jpeg or png: host=%s", host)
+        logger.warning("image must be jpeg or png: host=%s reason=not_image bytes=%s", host, len(content))
         raise ImageTypeError() from exc
 
     if media_type not in ALLOWED:
-        logger.warning("image must be jpeg or png: host=%s type=%s", host, media_type)
+        logger.warning("image must be jpeg or png: host=%s reason=wrong_type type=%s", host, media_type)
         raise ImageTypeError()
 
-    logger.info("image loaded: host=%s bytes=%s type=%s", host, len(content), media_type)
+    ms = int((monotonic() - started) * 1000)
+    logger.info("image loaded: host=%s bytes=%s type=%s ms=%s", host, len(content), media_type, ms)
     return ImageBytes(
         content=content,
         width=width,

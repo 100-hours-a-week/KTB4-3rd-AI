@@ -49,7 +49,7 @@ class OcrEngine:
             try:
                 pages = pipeline.predict(tmp.name)
             except Exception as exc:
-                logger.exception("ocr inference failed")
+                logger.exception("ocr inference failed: bytes=%s type=%s", len(image.content), image.media_type)
                 raise InternalError() from exc
         return "\n".join(line for page in pages for line in page_lines(page))
 
@@ -73,6 +73,6 @@ class OcrEngine:
                     device=self.device,
                 )
             except Exception as exc:
-                logger.exception("ocr model load failed")
+                logger.exception("ocr model load failed: device=%s", self.device)
                 raise ModelNotReady() from exc
             return self.pipeline
