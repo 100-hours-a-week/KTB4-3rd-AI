@@ -26,7 +26,12 @@ class ModalEngine:
                 except ImportError as exc:
                     logger.exception("modal is not installed")
                     raise ModelNotReady() from exc
-                self.remote = modal.Cls.from_name(APP, CLS)()
+                try:
+                    self.remote = modal.Cls.from_name(APP, CLS)()
+                except Exception as exc:
+                    # 토큰이 없거나 앱이 배포되지 않았으면 여기서 실패할 수 있다. 기능 폴더가 luna로 넘긴다.
+                    logger.error("modal lookup failed: reason=%s", type(exc).__name__)
+                    raise ModelNotReady() from exc
             return self.remote
 
     def read(self, image: ImageBytes) -> str:

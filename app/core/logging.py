@@ -23,6 +23,7 @@ import logging
 #   - ERROR   openai api key is missing: OPENAI_API_KEY_1 또는 _2가 없을 때. 빠진 키 이름
 #   - ERROR   openai request failed: OpenAI HTTP 요청이 실패했을 때. status
 #   - ERROR   openai response shape is unexpected: 응답 output에 output_text가 없을 때
+#   - WARNING openai request retry: 429 또는 5xx를 받아 한 번 더 보낼 때. status
 # - llm/providers/ocr.py
 #   - ERROR   paddleocr is not installed
 #   - ERROR   ocr model load failed: PP-OCRv6_medium_det 로드에 실패했을 때
@@ -31,6 +32,7 @@ import logging
 #   - ERROR   modal is not installed
 #   - ERROR   modal call failed: Modal 앱이 없거나, 키가 틀렸거나, 원격 추론이 실패했을 때. method, reason
 # - llm/providers/slm.py
+#   - ERROR   modal lookup failed: 토큰이 없거나 앱을 찾지 못했을 때. reason
 #   - ERROR   torch or transformers is not installed
 #   - ERROR   slm model load failed: AlexWortega/openjev 4B 로드에 실패했을 때
 #   - ERROR   slm inference failed: 추론 중 예외가 났을 때. 스택은 로그에만 남긴다

@@ -15,6 +15,13 @@ PROMPT = """
 택시미터의 현재 요금만 고르세요.
 JSON만 출력하세요. 키: cost
 """.strip()
+# 읽지 못하면 null을 준다. null은 JUDGE_PARSE_FAILED가 된다.
+SCHEMA = {
+    "type": "object",
+    "properties": {"cost": {"type": ["integer", "null"]}},
+    "required": ["cost"],
+    "additionalProperties": False,
+}
 
 
 def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
@@ -35,7 +42,7 @@ def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
 
 
 def model_api_run(image: ImageBytes) -> dict[str, int]:
-    raw = llm("api_1", PROMPT, image)
+    raw = llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
         cost = amount_value(str(json.loads(raw)["cost"]))
     except (KeyError, TypeError, ValueError) as exc:
