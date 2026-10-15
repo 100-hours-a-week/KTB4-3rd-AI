@@ -43,7 +43,7 @@ class SlmEngine:
                 logits = self.model(**encoded).logits.float()
             return logits.softmax(dim=-1).tolist()
         except Exception as exc:
-            logger.exception("slm inference failed")
+            logger.exception("slm inference failed: pairs=%s max_chars=%s", len(pairs), max((len(p) for p, _ in pairs), default=0))
             raise InternalError() from exc
 
     def load(self) -> None:
@@ -68,7 +68,7 @@ class SlmEngine:
                 if text_config.pad_token_id is None:
                     text_config.pad_token_id = tokenizer.pad_token_id
             except Exception as exc:
-                logger.exception("slm model load failed")
+                logger.exception("slm model load failed: device=%s", self.device)
                 raise ModelNotReady() from exc
             self.tokenizer = tokenizer
             self.template = getattr(model.config, "nli_template", None) or TEMPLATE

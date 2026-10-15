@@ -72,19 +72,30 @@ def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int | str] | Non
     return result
 
 
+def invalid(field: str, reason: str) -> JudgeParseError:
+    logger.warning("model output is not valid: field=%s reason=%s", field, reason)
+    return JudgeParseError()
+
+
 def model_api_run(image: ImageBytes) -> dict[str, int | str]:
     raw = llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
         payload = json.loads(raw)
-        if any(payload[key] is None for key in KEYS):
+        if not isinstance(payload, dict):
             raise ValueError
-        result = {key: str(payload[key]) for key in KEYS}
+    except ValueError as exc:
+        raise invalid("all", "not_json") from exc
+    # luna가 사진에서 읽지 못한 필드는 null로 온다.
+    missing = [key for key in KEYS if payload.get(key) is None]
+    if missing:
+        raise invalid(",".join(missing), "unreadable")
+    result = {key: str(payload[key]) for key in KEYS}
+    try:
         result["amount_cost"] = amount_value(result["amount_cost"])
-        result["send_time"] = datetime_value(result["send_time"])
-        if not is_done(result["transfer_info"]):
-            raise ValueError("transfer is not done")
-    except (KeyError, TypeError, ValueError) as exc:
-        logger.warning("model output is not valid: %s", type(exc).__name__)
-        raise JudgeParseError() from exc
+    except ValueError as exc:
+        raise invalid("amount_cost", "not_amount") from exc
+    result["send_time"] = datetime_value(result["send_time"])
+    if not is_done(result["transfer_info"]):
+        raise invalid("transfer_info", "transfer_not_done")
     logger.info("judge parsed: amount_cost=%s", result["amount_cost"])
     return result
