@@ -14,8 +14,12 @@ logger = get_logger(__name__)
 
 URL = "https://api.openai.com/v1/responses"
 MODEL = "gpt-6-luna"
-TIMEOUT = 60
+# 재시도까지 합친 OpenAI 구간 상한. 실측(2026-10-15, 75회) 최대 30.4초의 1.5배다.
+# BE read-timeout 60초 = 이미지 다운로드 최악 10초 + 45초 + 여유 5초.
+TIMEOUT = 45
 RETRY_WAIT = 1.0
+# 재시도는 남은 시간이 이만큼 있을 때만 한다.
+RETRY_MIN = 10
 # 상태 코드별 확인 안내. 응답 본문의 error.code가 더 구체적이면 그것도 함께 남긴다.
 HINTS = {
     400: "요청 본문 확인(schema, 이미지 형식)",
@@ -91,10 +95,12 @@ class OpenAIEngine:
         return text
 
     def post(self, key: str, body: dict) -> httpx.Response:
-        # ponytail: 429와 5xx만 1초 뒤 한 번 더 보낸다. 최악 지연은 TIMEOUT의 두 배다. 429가 잦으면 Retry-After를 읽는다.
+        # ponytail: 429와 5xx만 1초 뒤 한 번 더 보내고, 두 번 합쳐 TIMEOUT 안에서 끝낸다. 429가 잦으면 Retry-After를 읽는다.
+        deadline = time.monotonic() + TIMEOUT
         for attempt in (1, 2):
-            res = httpx.post(URL, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=TIMEOUT)
-            if attempt == 2 or (res.status_code != 429 and res.status_code < 500):
+            res = httpx.post(URL, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=deadline - time.monotonic())
+            retryable = res.status_code == 429 or res.status_code >= 500
+            if attempt == 2 or not retryable or deadline - time.monotonic() - RETRY_WAIT < RETRY_MIN:
                 return res
             logger.warning("openai request retry: status=%s error=%s", res.status_code, error_detail(res))
             time.sleep(RETRY_WAIT)

@@ -38,6 +38,30 @@ def test_no_retry_on_4xx_and_gives_up_after_two(monkeypatch):
     assert getattr(exc, "code", None) == "UPSTREAM_FAILED" and len(bodies) == 2
 
 
+def test_retry_stays_within_timeout(monkeypatch):
+    # 첫 503이 몇 초 뒤에 왔는지에 따라 재시도 여부와 재시도 대기 시간이 정해진다.
+    def calls(spent):
+        clock, timeouts = [0.0], []
+
+        def post(url, headers, json, timeout):
+            timeouts.append(timeout)
+            clock[0] += spent
+            return httpx.Response(503, json={}, request=httpx.Request("POST", url))
+
+        monkeypatch.setattr(openai.time, "monotonic", lambda: clock[0])
+        monkeypatch.setattr(openai.httpx, "post", post)
+        try:
+            openai.OpenAIEngine("1").complete(None, "p")
+        except Exception:
+            pass
+        return timeouts
+
+    monkeypatch.setenv("OPENAI_API_KEY_1", "k")
+    monkeypatch.setattr(openai, "RETRY_WAIT", 0)
+    assert calls(40) == [45]  # 남은 5초 < RETRY_MIN이라 재시도하지 않는다
+    assert calls(20) == [45, 25]  # 재시도는 남은 시간만 기다린다
+
+
 def test_schema_switches_format(monkeypatch):
     _, bodies = run(monkeypatch, [200])
     assert bodies[0]["text"]["format"] == {"type": "json_object"}
