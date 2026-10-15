@@ -1,4 +1,4 @@
-# llm(모델명, 프롬프트, 이미지, device)은 모델을 한 번 돌리고 결과만 돌려준다.
+# llm(모델명, 프롬프트, 이미지, device, schema)은 모델을 한 번 돌리고 결과만 돌려준다.
 # - ocr:    image → 읽은 원문 str
 # - slm:    prompt=[(원문, 가설), ...] → 가설마다 [모순, 지지, 중립]
 # - api_1:  prompt, image → JSON 문자열. 이미지용 OpenAI 키와 모델(OPENAI_*_1)
@@ -49,10 +49,11 @@ def llm(
     prompt: str | list[tuple[str, str]] | None = None,
     image: ImageBytes | None = None,
     device: str = "cpu",
+    schema: dict | None = None,
 ) -> str | list[list[float]]:
     model = engine(name, device)
     if name == "ocr":
         return model.read(image)
     if name == "slm":
         return model.predict(prompt)
-    return model.complete(image, prompt)
+    return model.complete(image, prompt, schema)
