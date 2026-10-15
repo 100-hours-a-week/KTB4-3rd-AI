@@ -44,3 +44,19 @@ def test_schema_switches_format(monkeypatch):
     schema = {"type": "object"}
     _, bodies = run(monkeypatch, [200], schema)
     assert bodies[0]["text"]["format"] == {"type": "json_schema", "name": "result", "schema": schema, "strict": True}
+
+
+def test_legacy_key_only_for_slot_1(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY_1", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "old")
+    seen = []
+    monkeypatch.setattr(openai.httpx, "post", lambda url, headers, json, timeout: seen.append(headers) or httpx.Response(200, json=OK, request=httpx.Request("POST", url)))
+    assert openai.OpenAIEngine("1").complete(None, "p") == '{"cost": 3000}'
+    assert seen[0]["Authorization"] == "Bearer old"
+    try:
+        openai.OpenAIEngine("2").complete(None, "p")
+    except Exception as exc:
+        assert getattr(exc, "code", None) == "MODEL_NOT_READY"
+    else:
+        raise AssertionError("slot 2 must not use the legacy key")
