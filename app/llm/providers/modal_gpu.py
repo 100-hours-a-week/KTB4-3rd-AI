@@ -1,5 +1,6 @@
 # Modal T4 인터페이스. llm/modal_app.py로 배포한 OCR과 openjev를 원격으로 부른다.
-# MODAL_TOKEN_ID, MODAL_TOKEN_SECRET은 modal 패키지가 환경변수에서 직접 읽는다.
+# 토큰은 MODAL_TOKEN_ID_{slot}, MODAL_TOKEN_SECRET_{slot}에서 읽어 클라이언트를 직접 만든다. _1 이미지, _2 혼잡도로 계정을 나눈다.
+import os
 import threading
 import time
 from typing import Any
@@ -17,7 +18,8 @@ WAIT = 30
 
 
 class ModalEngine:
-    def __init__(self) -> None:
+    def __init__(self, slot: str = "1") -> None:
+        self.slot = slot
         self.remote = None
         self.lock = threading.Lock()
 
@@ -31,10 +33,13 @@ class ModalEngine:
                     raise ModelNotReady() from exc
                 try:
                     # hydrate로 토큰과 배포된 앱을 지금 확인한다. 없으면 기동 때 한 번만 실패한다.
-                    self.remote = modal.Cls.from_name(APP, CLS).hydrate()()
+                    client = modal.Client.from_credentials(
+                        os.environ.get(f"MODAL_TOKEN_ID_{self.slot}", ""), os.environ.get(f"MODAL_TOKEN_SECRET_{self.slot}", "")
+                    )
+                    self.remote = modal.Cls.from_name(APP, CLS, client=client).hydrate(client)()
                 except Exception as exc:
                     # 토큰이 없거나 앱이 배포되지 않았으면 여기서 실패할 수 있다. 기능 폴더가 luna로 넘긴다.
-                    logger.error("modal lookup failed: reason=%s hint=MODAL_TOKEN_ID·SECRET 값과 modal deploy -m app.llm.modal_app 배포 여부 확인", type(exc).__name__)
+                    logger.error("modal lookup failed: reason=%s slot=%s hint=MODAL_TOKEN_ID_%s·MODAL_TOKEN_SECRET_%s 값과 그 계정으로 modal deploy -m app.llm.modal_app 했는지 확인", type(exc).__name__, self.slot, self.slot, self.slot)
                     raise ModelNotReady() from exc
             return self.remote
 
