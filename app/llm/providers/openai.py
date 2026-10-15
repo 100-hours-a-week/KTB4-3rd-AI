@@ -21,7 +21,7 @@ HINTS = {
     400: "요청 본문 확인(schema, 이미지 형식)",
     401: "API 키가 틀렸거나 폐기됨. OPENAI_API_KEY_1 값 확인",
     403: "키의 조직·프로젝트 권한 또는 지역 제한 확인",
-    404: "모델 이름 확인(OPENAI_MODEL_1, 기본 gpt-6-luna)",
+    404: f"모델 이름 확인(코드 고정 {MODEL})",
     429: "요청 한도 초과 또는 크레딧 부족(error 값이 insufficient_quota면 결제 확인)",
 }
 
@@ -39,7 +39,7 @@ def error_detail(res: httpx.Response | None) -> str:
 class OpenAIEngine:
     def __init__(self, slot: str):
         self.key_name = f"OPENAI_API_KEY_{slot}"
-        self.model = os.environ.get(f"OPENAI_MODEL_{slot}") or MODEL
+        self.model = MODEL
 
     def complete(self, image: ImageBytes | None, prompt: str, schema: dict | None = None) -> str:
         key = os.environ.get(self.key_name)

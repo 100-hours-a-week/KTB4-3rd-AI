@@ -42,7 +42,7 @@ import httpx
 #   - ERROR   ocr inference failed: 추론에 실패했을 때. bytes, type. 스택은 로그에만 남긴다
 # - llm/providers/modal_gpu.py
 #   - WARNING image model unavailable: modal이 설치되지 않음. model, missing
-#   - ERROR   modal lookup failed: 토큰이 없거나 앱을 찾지 못했을 때. reason, hint
+#   - ERROR   modal lookup failed: 토큰이 틀렸거나 그 계정에 앱이 없을 때. reason, slot, hint
 #   - ERROR   modal call failed: method, reason(timeout|auth|not_found|remote_error), error, ms
 # - llm/providers/slm.py
 #   - WARNING image model unavailable: torch 또는 transformers가 설치되지 않음. model, missing
