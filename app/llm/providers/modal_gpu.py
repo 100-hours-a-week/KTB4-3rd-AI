@@ -1,6 +1,7 @@
 # Modal T4 인터페이스. llm/modal_app.py로 배포한 OCR과 openjev를 원격으로 부른다.
 # MODAL_TOKEN_ID, MODAL_TOKEN_SECRET은 modal 패키지가 환경변수에서 직접 읽는다.
 import threading
+import time
 from typing import Any
 
 from ...core.exceptions import ModelNotReady, UpstreamError
@@ -33,7 +34,7 @@ class ModalEngine:
                     self.remote = modal.Cls.from_name(APP, CLS).hydrate()()
                 except Exception as exc:
                     # 토큰이 없거나 앱이 배포되지 않았으면 여기서 실패할 수 있다. 기능 폴더가 luna로 넘긴다.
-                    logger.error("modal lookup failed: reason=%s", type(exc).__name__)
+                    logger.error("modal lookup failed: reason=%s hint=MODAL_TOKEN_ID·SECRET 값과 modal deploy -m app.llm.modal_app 배포 여부 확인", type(exc).__name__)
                     raise ModelNotReady() from exc
             return self.remote
 
@@ -45,8 +46,12 @@ class ModalEngine:
 
     def call(self, method: str, *args: bytes | str | list[tuple[str, str]]) -> str | list[list[float]]:
         remote = self.load()
+        started = time.monotonic()
         try:
             return getattr(remote, method).spawn(*args).get(timeout=WAIT)
         except Exception as exc:
-            logger.error("modal call failed: method=%s reason=%s", method, type(exc).__name__)
+            name = type(exc).__name__
+            reason = "timeout" if "Timeout" in name else {"AuthError": "auth", "NotFoundError": "not_found"}.get(name, "remote_error")
+            ms = int((time.monotonic() - started) * 1000)
+            logger.error("modal call failed: method=%s reason=%s error=%s ms=%s", method, reason, name, ms)
             raise UpstreamError() from exc

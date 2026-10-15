@@ -60,3 +60,20 @@ def test_legacy_key_only_for_slot_1(monkeypatch):
         assert getattr(exc, "code", None) == "MODEL_NOT_READY"
     else:
         raise AssertionError("slot 2 must not use the legacy key")
+
+
+def test_failure_log_has_reason_and_hint(monkeypatch, caplog):
+    import logging
+
+    body = {"error": {"type": "invalid_request_error", "code": "invalid_api_key", "message": "secret text"}}
+    monkeypatch.setenv("OPENAI_API_KEY_1", "k")
+    monkeypatch.setattr(openai.httpx, "post", lambda url, headers, json, timeout: httpx.Response(
+        401, json=body, headers={"x-request-id": "req_9"}, request=httpx.Request("POST", url)))
+    with caplog.at_level(logging.INFO, logger="app"):
+        try:
+            openai.OpenAIEngine("1").complete(None, "p")
+        except Exception:
+            pass
+    line = [r.getMessage() for r in caplog.records if r.getMessage().startswith("openai request failed")][0]
+    assert "reason=http_4xx status=401 error=invalid_request_error/invalid_api_key openai_req=req_9" in line
+    assert "hint=API 키가 틀렸거나 폐기됨" in line and "secret text" not in line

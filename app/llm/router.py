@@ -53,7 +53,8 @@ def ready(name: ModelName, device: str, call: Callable[[], Any]) -> Any:
     try:
         return call()
     except ModelNotReady:
-        if key not in down:
+        # api는 키 확인 비용이 없어 차단하지 않는다. 이미지 모델(ocr, slm)만 기록한다.
+        if name in ("ocr", "slm") and key not in down:
             down.add(key)
             logger.warning("model marked down: model=%s device=%s", name, device)
         raise

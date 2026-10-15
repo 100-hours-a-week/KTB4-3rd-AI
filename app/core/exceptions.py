@@ -10,6 +10,19 @@
 # 500 INTERNAL             등록되지 않은 모델이거나 추론 중 예외
 
 
+# 오류 응답 로그(request failed)에 붙는 확인 안내. 같은 request_id의 앞선 로그에 구체 원인이 있다.
+HINTS = {
+    "REQUEST_INVALID": "요청 JSON에 문자열 image_URL이 있는지 확인",
+    "IMAGE_FETCH_FAILED": "image_URL이 5초 안에 리다이렉트 없이 200을 주는지 확인(presigned 만료, 권한, 주소)",
+    "IMAGE_SIZE_INVALID": "이미지가 1바이트 이상 5MB 이하인지 확인",
+    "IMAGE_TYPE_INVALID": "파일 내용이 JPEG 또는 PNG인지 확인(확장자가 아니라 내용)",
+    "JUDGE_PARSE_FAILED": "사진에서 값을 확정하지 못함. 사진 품질과, 영수증은 이체 완료 화면인지 확인",
+    "UPSTREAM_FAILED": "OpenAI 또는 Modal 호출 실패. 같은 request_id의 openai/modal 로그에서 reason 확인",
+    "MODEL_NOT_READY": "OPENAI_API_KEY_1(또는 OPENAI_API_KEY)이 컨테이너에 주입됐는지 확인",
+    "INTERNAL": "처리되지 않은 예외. 같은 request_id의 Traceback 확인",
+}
+
+
 class AppError(Exception):
     def __init__(self, code: str, message: str, status_code: int) -> None:
         self.code = code
