@@ -6,7 +6,7 @@
 
 `router.py`는 `POST /receipt`를 받는다. 요청 본문을 검사한 뒤 `main.run`을 부른다.
 
-`main.py`의 `run`은 요청 하나의 순서를 정한다. 이미지를 한 번 받는다. `IMAGE_DEVICE`가 `off`이면 `model_api_run`만 부른다. 그 외에는 `model_pipe_run`을 먼저 돌리고, 결과가 없거나 로컬 모델이 실패하면 `model_api_run`을 부른다. 이 서버에서 모델을 돌릴 때는 로컬 모델 구간을 한 요청씩 처리한다.
+`main.py`의 `run`은 요청 하나의 순서를 정한다. 이미지를 한 번 받는다. 이미지 모델을 쓰지 않는 환경(`LOCAL_DEVICE=FALSE`이고 Modal `_1` 키 없음)이면 `model_api_run`만 부른다. 그 외에는 `model_pipe_run`을 먼저 돌리고, 결과가 없거나 로컬 모델이 실패하면 `model_api_run`을 부른다. 이 서버에서 모델을 돌릴 때는 로컬 모델 구간을 한 요청씩 처리한다.
 
 `pipeline.py`의 `model_pipe_run`은 OCR로 글자를 읽고 openjev로 금액, 시각, 이체 완료, 보낸 사람을 고른다. 네 필드가 모두 pass이고 이체 완료 문구일 때만 값을 돌려준다. 한 필드라도 pass가 아니면 값을 만들지 않는다. `model_api_run`은 luna API로 같은 사진을 읽어 네 필드를 만든다. 이체 완료 문구가 아니면 `JUDGE_PARSE_FAILED`를 낸다.
 

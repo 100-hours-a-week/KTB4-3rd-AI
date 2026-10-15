@@ -35,7 +35,8 @@ def engine(name: ModelName, device: str) -> Engine:
             if name in ("api_1", "api_2"):
                 engines[key] = OpenAIEngine(name[-1])
             elif name in ("ocr", "slm") and device == "modal":
-                engines[key] = ModalEngine()
+                # 이미지 모델은 Modal _1 계정을 쓴다.
+                engines[key] = ModalEngine("1")
             elif name == "ocr":
                 engines[key] = OcrEngine(device)
             elif name == "slm":

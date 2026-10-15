@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .api.router import router
-from .core.config import IMAGE_DEVICE
+from .core.config import DEVICE
 from .core.exceptions import HINTS, AppError, InternalError, RequestInvalid
 from .core.logging import get_logger, request_context
 from .llm import load
@@ -16,10 +16,10 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 이미지 모델을 쓸 때 기동 시 미리 올린다(Modal은 토큰과 앱 확인). 실패하면 down에 들어가 요청은 바로 luna가 처리한다.
-    if IMAGE_DEVICE != "off":
+    if DEVICE != "off":
         for name in ("ocr", "slm"):
             try:
-                load(name, IMAGE_DEVICE)
+                load(name, DEVICE)
             except AppError:
                 pass
     yield
