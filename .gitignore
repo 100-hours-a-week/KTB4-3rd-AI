@@ -12,3 +12,16 @@ venv/
 *.egg-info/
 dist/
 build/
+.grok/
+.cursor/
+.codex/
+.claude/
+agent.md
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+.cursorrules
+.coverage
+htmlcov/
+coverage.xml
+.hypothesis/
