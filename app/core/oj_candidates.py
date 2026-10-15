@@ -11,6 +11,7 @@ DATE = r"\d{2,4}\s*[./-]\s*\d{1,2}\s*[./-]\s*\d{1,2}\.?|\d{2,4}년\s*\d{1,2}월\
 TIME = r"(?:(?:오전|오후)\s*)?\d{1,2}:\d{2}(?::\d{2})?(?!\d)"
 # 날짜 바로 뒤에 숫자가 이어지면 계좌번호의 일부로 보고 날짜로 잡지 않는다.
 DATETIME = re.compile(rf"(?:{DATE})(?:\s*(?:{TIME})|(?!\d))|(?<!\d)(?:{TIME})")
+DATE_TIME = re.compile(rf"({DATE})\s*({TIME})")
 NOT_AMOUNT = re.compile(rf"{DATETIME.pattern}|\d+(?:-\d+)+")
 AMOUNT = re.compile(r"\d{1,3}(?:,\d{3})+|\d+")
 MIN_AMOUNT = 100
@@ -28,6 +29,13 @@ def amount_value(span: str) -> int:
     return int(span.replace(",", "").replace(" ", "").replace("원", ""))
 # "15,400원" → 15400
 # "3000"     → 3000
+
+
+def datetime_value(span: str) -> str:
+    # OCR이 날짜와 시각 사이 공백을 잃는 경우가 있어 한 칸을 넣는다. 나머지 표기는 영수증에 적힌 그대로 둔다.
+    return DATE_TIME.sub(r"\1 \2", span)
+# "2026-09-2312:30:45"    → "2026-09-23 12:30:45"
+# "2026년9월 1일오후 7:42" → "2026년9월 1일 오후 7:42"
 
 
 def amount_candidates(plain: str) -> list[str]:

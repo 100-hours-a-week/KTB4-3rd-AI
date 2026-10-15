@@ -9,6 +9,7 @@ from ...core.oj_candidates import (
     amount_candidates,
     amount_value,
     datetime_candidates,
+    datetime_value,
     name_candidates,
     status_candidates,
 )
@@ -35,6 +36,18 @@ PROMPT = """
 transfer_info에는 화면에 적힌 이체 결과 문구를 그대로 적으세요. 예: "이체 완료"
 JSON만 출력하세요. 키: amount_cost, transfer_info, sender_name, send_time
 """.strip()
+# 읽지 못한 필드는 null을 준다. null이 하나라도 있으면 JUDGE_PARSE_FAILED가 된다.
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "amount_cost": {"type": ["integer", "null"]},
+        "transfer_info": {"type": ["string", "null"]},
+        "sender_name": {"type": ["string", "null"]},
+        "send_time": {"type": ["string", "null"]},
+    },
+    "required": KEYS,
+    "additionalProperties": False,
+}
 
 
 def is_done(transfer_info: str) -> bool:
@@ -54,18 +67,20 @@ def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int | str] | Non
         logger.info("judge fallback: transfer_info=not_done")
         return None
     result["amount_cost"] = amount_value(result["amount_cost"])
+    result["send_time"] = datetime_value(result["send_time"])
     logger.info("judge parsed: amount_cost=%s", result["amount_cost"])
     return result
 
 
 def model_api_run(image: ImageBytes) -> dict[str, int | str]:
-    raw = llm("api_1", PROMPT, image)
+    raw = llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
         payload = json.loads(raw)
         if any(payload[key] is None for key in KEYS):
             raise ValueError
         result = {key: str(payload[key]) for key in KEYS}
         result["amount_cost"] = amount_value(result["amount_cost"])
+        result["send_time"] = datetime_value(result["send_time"])
         if not is_done(result["transfer_info"]):
             raise ValueError("transfer is not done")
     except (KeyError, TypeError, ValueError) as exc:
