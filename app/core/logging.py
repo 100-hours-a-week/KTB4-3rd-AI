@@ -20,7 +20,7 @@ import logging
 # - llm/router.py
 #   - ERROR   unknown model: 등록되지 않은 모델 이름
 # - llm/providers/openai.py
-#   - ERROR   openai api key is missing: OPENAI_API_KEY가 없을 때
+#   - ERROR   openai api key is missing: OPENAI_API_KEY_1 또는 _2가 없을 때. 빠진 키 이름
 #   - ERROR   openai request failed: OpenAI HTTP 요청이 실패했을 때. status
 #   - ERROR   openai response shape is unexpected: 응답 output에 output_text가 없을 때
 # - llm/providers/ocr.py
