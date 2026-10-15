@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from .api.router import router
 from .core.config import DEVICE
@@ -27,6 +28,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router)
+# Cloud Prometheus가 수집하는 /metrics. 대시보드·알림이 기본 지표 이름과 라벨을 쓰므로 설정을 바꾸지 않는다.
+# 헬스체크와 수집 요청은 지표에서 뺀다.
+Instrumentator(excluded_handlers=["/health", "/metrics"]).instrument(app).expose(app, include_in_schema=False)
 
 
 # 요청마다 request_id를 정해 로그에 붙인다. 가장 바깥 미들웨어가 되도록 다른 미들웨어보다 뒤에 등록한다.
