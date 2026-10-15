@@ -5,7 +5,7 @@ import threading
 from typing import Any, TypedDict
 
 from ...core.exceptions import InternalError, ModelNotReady
-from ...core.logging import get_logger
+from ...core.logging import get_logger, log_import_error
 from ..types import ImageBytes
 
 logger = get_logger(__name__)
@@ -60,7 +60,7 @@ class OcrEngine:
             try:
                 from paddleocr import PaddleOCR
             except ImportError as exc:
-                logger.exception("paddleocr is not installed")
+                log_import_error(logger, "ocr", ("paddleocr",), exc)
                 raise ModelNotReady() from exc
             try:
                 self.pipeline = PaddleOCR(

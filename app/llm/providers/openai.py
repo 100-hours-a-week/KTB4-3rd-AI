@@ -25,6 +25,9 @@ class OpenAIEngine:
 
     def complete(self, image: ImageBytes | None, prompt: str, schema: dict | None = None) -> str:
         key = os.environ.get(self.key_name)
+        if not key and self.key_name == "OPENAI_API_KEY_1":
+            # 키를 _1, _2로 나누기 전 이름. 배포 Secret을 아직 안 바꿨어도 이미지 기능은 돌게 한다.
+            key = os.environ.get("OPENAI_API_KEY")
         if not key:
             logger.error("openai api key is missing: %s", self.key_name)
             raise ModelNotReady()

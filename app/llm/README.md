@@ -13,6 +13,9 @@ load("ocr", device="cpu")                      # 기동 때 미리 올리기
 ## 실행 환경
 
 `IMAGE_DEVICE`(`core/config.py`)로 이미지 모델을 어디서 돌릴지 정한다. 값은 `.env.example`을 따른다.
+정하는 순서는 `IMAGE_DEVICE`를 적었으면 그 값, 비웠으면 `MODAL_TOKEN_ID`가 있을 때 `modal`, 없으면 `off`(luna만)다.
+기동 때 모델 로드나 Modal 조회에 실패하면 그 장치는 재시작 전까지 쓰지 않고 바로 luna로 처리한다.
+Modal로 바꾸려면 `modal deploy`, `.[modal]` 설치, `MODAL_TOKEN_ID`·`MODAL_TOKEN_SECRET`이 모두 있어야 한다.
 
 | 환경 | IMAGE_DEVICE | 설치 | 동작 |
 | --- | --- | --- | --- |

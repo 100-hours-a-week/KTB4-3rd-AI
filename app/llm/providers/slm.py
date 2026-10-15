@@ -2,7 +2,7 @@
 import threading
 
 from ...core.exceptions import InternalError, ModelNotReady
-from ...core.logging import get_logger
+from ...core.logging import get_logger, log_import_error
 
 logger = get_logger(__name__)
 
@@ -54,7 +54,7 @@ class SlmEngine:
                 import torch
                 from transformers import AutoModelForSequenceClassification, AutoTokenizer
             except ImportError as exc:
-                logger.exception("torch or transformers is not installed")
+                log_import_error(logger, "slm", ("torch", "transformers"), exc)
                 raise ModelNotReady() from exc
             try:
                 tokenizer = AutoTokenizer.from_pretrained(REPO, subfolder=SUBFOLDER)
