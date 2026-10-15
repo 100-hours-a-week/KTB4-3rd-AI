@@ -8,6 +8,8 @@ dependencies = [
     "uvicorn[standard]>=0.52",
     "httpx>=0.28",
     "pillow>=12",
+    # 로컬 Qdrant(QdrantClient(path=...)). 서버로 옮기면 url=만 바꾼다.
+    "qdrant-client>=1.19",
 ]
 
 [project.optional-dependencies]

@@ -59,7 +59,7 @@ def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int | str] | Non
 
 
 def model_api_run(image: ImageBytes) -> dict[str, int | str]:
-    raw = llm("api", PROMPT, image)
+    raw = llm("api_1", PROMPT, image)
     try:
         payload = json.loads(raw)
         if any(payload[key] is None for key in KEYS):

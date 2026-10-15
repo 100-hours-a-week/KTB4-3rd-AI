@@ -1,7 +1,8 @@
 ```python
 llm("ocr", image=image, device="cpu")          # 검출 + 인식으로 읽은 원문 str
 llm("slm", [(원문, 가설), ...], device="cpu")   # 가설마다 [모순, 지지, 중립]
-llm("api", prompt, image)                      # luna, JSON 문자열
+llm("api_1", prompt, image)                    # 이미지용 luna, JSON 문자열
+llm("api_2", prompt, image)                    # 혼잡도용 luna, JSON 문자열
 load("ocr", device="cpu")                      # 기동 때 미리 올리기
 ```
 

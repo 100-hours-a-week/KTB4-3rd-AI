@@ -35,7 +35,7 @@ def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
 
 
 def model_api_run(image: ImageBytes) -> dict[str, int]:
-    raw = llm("api", PROMPT, image)
+    raw = llm("api_1", PROMPT, image)
     try:
         cost = amount_value(str(json.loads(raw)["cost"]))
     except (KeyError, TypeError, ValueError) as exc:

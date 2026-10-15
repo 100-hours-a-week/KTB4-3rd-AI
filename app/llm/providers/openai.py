@@ -16,10 +16,14 @@ TIMEOUT = 60
 
 
 class OpenAIEngine:
+    def __init__(self, slot: str):
+        self.key_name = f"OPENAI_API_KEY_{slot}"
+        self.model = os.environ.get(f"OPENAI_MODEL_{slot}") or MODEL
+
     def complete(self, image: ImageBytes | None, prompt: str) -> str:
-        key = os.environ.get("OPENAI_API_KEY")
+        key = os.environ.get(self.key_name)
         if not key:
-            logger.error("openai api key is missing")
+            logger.error("openai api key is missing: %s", self.key_name)
             raise ModelNotReady()
 
         content: list[dict] = [{"type": "input_text", "text": prompt}]
@@ -27,7 +31,7 @@ class OpenAIEngine:
             b64 = b64encode(image.content).decode("ascii")
             content.append({"type": "input_image", "image_url": f"data:{image.media_type};base64,{b64}"})
         body = {
-            "model": MODEL,
+            "model": self.model,
             "input": [{"role": "user", "content": content}],
             "text": {"format": {"type": "json_object"}},
         }
