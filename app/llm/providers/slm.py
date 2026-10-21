@@ -2,7 +2,7 @@
 import threading
 
 from ...core.exceptions import InternalError, ModelNotReady
-from ...core.logging import get_logger
+from ...core.logging import get_logger, log_import_error
 
 logger = get_logger(__name__)
 
@@ -43,7 +43,7 @@ class SlmEngine:
                 logits = self.model(**encoded).logits.float()
             return logits.softmax(dim=-1).tolist()
         except Exception as exc:
-            logger.exception("slm inference failed")
+            logger.exception("slm inference failed: pairs=%s max_chars=%s", len(pairs), max((len(p) for p, _ in pairs), default=0))
             raise InternalError() from exc
 
     def load(self) -> None:
@@ -54,8 +54,8 @@ class SlmEngine:
                 import torch
                 from transformers import AutoModelForSequenceClassification, AutoTokenizer
             except ImportError as exc:
-                logger.exception("torch or transformers is not installed")
-                raise ModelNotReady("open model is not ready") from exc
+                log_import_error(logger, "slm", ("torch", "transformers"), exc)
+                raise ModelNotReady() from exc
             try:
                 tokenizer = AutoTokenizer.from_pretrained(REPO, subfolder=SUBFOLDER)
                 tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
@@ -68,8 +68,8 @@ class SlmEngine:
                 if text_config.pad_token_id is None:
                     text_config.pad_token_id = tokenizer.pad_token_id
             except Exception as exc:
-                logger.exception("slm model load failed")
-                raise ModelNotReady("open model is not ready") from exc
+                logger.exception("slm model load failed: device=%s", self.device)
+                raise ModelNotReady() from exc
             self.tokenizer = tokenizer
             self.template = getattr(model.config, "nli_template", None) or TEMPLATE
             self.model = model

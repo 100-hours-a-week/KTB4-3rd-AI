@@ -20,6 +20,8 @@ INSTRUCTIONS = """\
 혼잡·대기에 영향을 주는 구체적 원인과 관련된 내용인지 넓게 판단한다.
 단계 표현 없이 현재 대기의 구체 원인만 제보한 내용도 관련 있다.
 단순한 날씨·행사·고장 사실은 혼잡·대기와의 관계가 없으면 관련 내용으로 보지 않는다.
+차량 도로 정체는 혼잡 상태에 포함한다. 역·정류장 안이나 주변 상점의 카페 자리, 식당 웨이팅,
+매장 줄은 스팟 혼잡과 관련 없는 내용으로 본다.
 관련성만 평가하며, 직접 관찰 여부·질문·예측·과거 상황의 유효성 판정은 후속 단계에 맡긴다.
 댓글은 부모 원글과 다른 댓글을 해석 문맥으로 읽되, 지정한 댓글의 관련성만 평가한다.
 부모가 관련 있다는 이유만으로 일반 댓글까지 관련 있다고 판단하지 않는다.
@@ -52,7 +54,7 @@ class DecisionsRelevanceScorer:
     def __call__(self, prepared: PreparedSpot) -> dict[SignalKey, float]:
         if not prepared.candidates:
             return {}
-        key = os.environ.get("OPENAI_API_KEY")
+        key = os.environ.get("OPENAI_API_KEY_2")
         if not key:
             raise ModelNotReady("decisions model is not ready")
 

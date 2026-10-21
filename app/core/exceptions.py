@@ -1,13 +1,26 @@
 # 클라이언트에 주는 message는 고정 문구다. 호스트, 상태 코드, 바이트 수는 로그에만 남긴다.
 #
 # 422 REQUEST_INVALID      요청 필드가 없음
-# 422 IMAGE_FETCH_FAILED   이미지 다운로드 실패
+# 422 IMAGE_FETCH_FAILED   이미지 다운로드 실패. 잘못된 URL, 5초 초과 포함
 # 422 IMAGE_SIZE_INVALID   비었거나 5MB 초과
 # 422 IMAGE_TYPE_INVALID   jpeg, png가 아님
-# 422 JUDGE_PARSE_FAILED   모델 출력이 JSON이 아니거나 필요한 값이 없음
+# 422 JUDGE_PARSE_FAILED   모델 출력이 JSON이 아니거나 필요한 값이 없음. 영수증이 이체 완료가 아닐 때도 여기로 온다
 # 502 UPSTREAM_FAILED      OpenAI 호출 실패 또는 응답 형식이 다름
-# 503 MODEL_NOT_READY      키, 가중치, 패키지가 없음. message에 api, ocr, open, modal 중 어디인지 적는다.
+# 503 MODEL_NOT_READY      키, 가중치, 패키지가 없음. api, ocr, open, modal 중 어디인지는 로그에만 남긴다.
 # 500 INTERNAL             등록되지 않은 모델이거나 추론 중 예외
+
+
+# 오류 응답 로그(request failed)에 붙는 확인 안내. 같은 request_id의 앞선 로그에 구체 원인이 있다.
+HINTS = {
+    "REQUEST_INVALID": "요청 JSON에 문자열 image_URL이 있는지 확인",
+    "IMAGE_FETCH_FAILED": "image_URL이 5초 안에 리다이렉트 없이 200을 주는지 확인(presigned 만료, 권한, 주소)",
+    "IMAGE_SIZE_INVALID": "이미지가 1바이트 이상 5MB 이하인지 확인",
+    "IMAGE_TYPE_INVALID": "파일 내용이 JPEG 또는 PNG인지 확인(확장자가 아니라 내용)",
+    "JUDGE_PARSE_FAILED": "사진에서 값을 확정하지 못함. 사진 품질과, 영수증은 이체 완료 화면인지 확인",
+    "UPSTREAM_FAILED": "OpenAI 또는 Modal 호출 실패. 같은 request_id의 openai/modal 로그에서 reason 확인",
+    "MODEL_NOT_READY": "OPENAI_API_KEY_1(또는 OPENAI_API_KEY)이 컨테이너에 주입됐는지 확인",
+    "INTERNAL": "처리되지 않은 예외. 같은 request_id의 Traceback 확인",
+}
 
 
 class AppError(Exception):

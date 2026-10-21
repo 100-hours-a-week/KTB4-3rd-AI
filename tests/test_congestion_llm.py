@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.exceptions import ModelNotReady, UpstreamError
+from app.features.congestion import extractor
 from app.features.congestion.extractor import ModelOutputInvalid, assess_bundle
 from app.features.congestion.models import CongestionAnalysisRequest
 from app.features.congestion.preprocessor import PreparedSpot
@@ -17,6 +18,16 @@ from app.features.congestion.service import LLMCongestionAnalyzer, get_analyzer
 from app.main import app
 
 AS_OF = "2026-10-08T12:00:00+09:00"
+
+
+def test_congestion_uses_dedicated_model_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    def complete(name: str, *, prompt: str) -> str:
+        if name != "api_2":
+            raise ValueError("wrong model slot")
+        return '{"signals": []}'
+
+    monkeypatch.setattr(extractor, "llm", complete)
+    assert extractor.call_api_model("prompt") == '{"signals": []}'
 
 
 def request_data() -> dict[str, Any]:

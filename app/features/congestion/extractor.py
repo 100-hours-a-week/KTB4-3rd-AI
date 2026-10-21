@@ -57,6 +57,8 @@ class BundleDecision(BaseModel):
 
 @dataclass(frozen=True)
 class AssessedSignal:
+    signal_type: SignalType
+    signal_id: int
     author_key: str
     created_at: datetime
     congestion_level: Stage | None
@@ -90,7 +92,14 @@ LOW: 한산함·여유 있음·줄 없음·바로 탑승 가능. "사람은 있�
 MEDIUM: "사람 많아요", "줄 길어요", "사람 많지만 이동할 만해요".
 HIGH: "사람 엄청/너무 많아요", "줄 엄청 길어요", 이동 불가,
 실제로 혼잡·만석 때문에 탑승 실패. "사람 엄청 많은데 이동은 괜찮아요"도 HIGH.
-"지금 줄 서 있어요", "괜찮아요", "사람이 줄었어요"만으로 단계 확정 금지.
+"괜찮아요", "사람이 줄었어요"만으로 단계 확정 금지.
+"지금 줄 서 있어요", "줄이 조금 있어요", "사람들이 기다리고 있어요", "10분째 기다리는 중"처럼
+현재 대기가 있다는 서술은 줄 길이·정도 표현이 없어도 MEDIUM이다. 강조 표현이 함께 있으면
+HIGH 기준을 따르고, 혼잡 정도를 모른다고 명시하면 null이다.
+도로·교차로 차량 흐름: 소통 원활은 LOW, 서행·밀리지만 신호 한 번에 통과는 MEDIUM,
+신호를 여러 번 기다리거나 거의 멈춰 있으면 HIGH다. "엄청 막혀요"는 HIGH다.
+역·정류장 안이나 주변 상점의 카페 자리, 식당 웨이팅, 매장 줄은 스팟 혼잡 제보가 아니다.
+이런 글은 단계 null, causes []다.
 사고·지연 사실만으로 혼잡 단계를 높이지 않는다. 애매하거나 서로 상충해
 확정하기 어려운 경우는 단계 null로 보류한다.
 같은 시점의 서로 다른 혼잡 단계가 함께 제시되고 현재 결론이 분명하지 않아도
@@ -102,12 +111,16 @@ HIGH: "사람 엄청/너무 많아요", "줄 엄청 길어요", 이동 불가,
 현재 혼잡이나 대기에 영향을 준다는 관계가 글에 명시될 때만 그 원인을 인정한다.
 예를 들어 "지금 비가 많이 와요"의 원인은 []이고, "폭우 때문에 대기줄이
 길어졌어요"는 WEATHER다. "신호기 고장 때문에 사람들이 기다리고 있어요"는
-BREAKDOWN이지만 기다린다는 말만으로 혼잡 단계는 확정하지 않는다.
+MEDIUM, BREAKDOWN이다. "신호기 고장 때문에 사람들이 기다려요. 혼잡 정도는 모르겠어요"는
+단계 null, BREAKDOWN이다.
 허용 코드: RUSH_HOUR(출퇴근), EVENT(행사·공연·경기), ACCIDENT(사고),
 BREAKDOWN(차량·설비 고장), DELAY(운행 지연), SERVICE_DISRUPTION(중단·통제·우회),
 WEATHER(폭우·폭설·태풍·한파), ROAD_TRAFFIC(도로 정체),
 CONSTRUCTION(공사·시설 작업), DEMONSTRATION(집회·시위·행진).
 코드 경계가 애매하면 추측하지 말고 해당 원인을 제외한다.
+예외로 차량 도로 정체("차가 막혀요", "도로가 막혀서 버스가 안 와요")가 서술되면 영향이
+명시되지 않아도 ROAD_TRAFFIC을 항상 넣는다. 정체 자체가 혼잡 서술이어도 넣는다.
+"차가 잘 빠져요"처럼 정체가 없으면 넣지 않는다.
 
 """
 
@@ -115,7 +128,7 @@ PROMPT = BUNDLE_INSTRUCTIONS + "\n" + JUDGMENT_RULES + "\n입력 JSON:\n"
 
 
 def call_api_model(prompt: str) -> str:
-    output = llm("api", prompt=prompt)
+    output = llm("api_2", prompt=prompt)
     if not isinstance(output, str):
         raise ModelOutputInvalid("api model did not return text")
     return output
@@ -189,6 +202,8 @@ def assess_bundle(
         author_key, created_at = targets[key]
         assessed.append(
             AssessedSignal(
+                signal_type=signal.signal_type,
+                signal_id=signal.signal_id,
                 author_key=author_key,
                 created_at=created_at,
                 congestion_level=signal.congestion_level,

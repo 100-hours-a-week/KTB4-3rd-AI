@@ -70,7 +70,7 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
     scores = {
         f"{item['signal_type']}_{item['signal_id']}": item["probability"] for item in case["scores"]
     }
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     decision_requests: list[dict[str, Any]] = []
     extraction_inputs: list[dict[str, Any]] = []
 
@@ -116,12 +116,9 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
             "result": {
                 "congestion_level": "LOW",
                 "report_count": 1,
-                "causes": [
-                    {"cause_code": "BREAKDOWN", "report_count": 1},
-                    {"cause_code": "EVENT", "report_count": 1},
-                ],
+                "causes": [{"cause_code": "BREAKDOWN", "report_count": 1}],
                 "summary": "제보 기준 혼잡도는 한산이며, 혼잡 제보자는 1명입니다. "
-                "제보된 원인은 차량·설비 고장(1명), 행사·공연·경기(1명)입니다.",
+                "제보된 원인은 차량·설비 고장(1명)입니다.",
             },
         },
         {
@@ -146,7 +143,7 @@ def test_missing_or_invalid_relevance_settings_fail_only_nonempty_spot(
         "CONGESTION_RELEVANCE_EXCLUDE_BELOW",
         "CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE",
         "CONGESTION_DECISIONS_TIMEOUT_SECONDS",
-        "OPENAI_API_KEY",
+        "OPENAI_API_KEY_2",
     ):
         monkeypatch.delenv(name, raising=False)
     if config == "invalid":

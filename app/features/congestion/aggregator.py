@@ -16,6 +16,12 @@ class JudgedSignal(Protocol):
     """LLM 출력 형식과 독립적인 집계 입력 경계."""
 
     @property
+    def signal_type(self) -> Literal["post", "comment"]: ...
+
+    @property
+    def signal_id(self) -> int: ...
+
+    @property
     def author_key(self) -> str: ...
 
     @property
@@ -31,9 +37,20 @@ class JudgedSignal(Protocol):
 Vote = TypeVar("Vote", bound=Hashable)
 
 
+# 같은 작성 시각이면 댓글을 원글보다 최신으로 보고, 같은 종류끼리는 큰 ID를 최신으로 본다(U11).
+_TYPE_ORDER = {"post": 0, "comment": 1}
+
+
+def _recency(signal: JudgedSignal) -> tuple[datetime, int, int]:
+    return (signal.created_at, _TYPE_ORDER[signal.signal_type], signal.signal_id)
+
+
 @dataclass(frozen=True)
 class AuthorVote(Generic[Vote]):
-    """작성자의 최신 유효 제보들과 동시각 충돌 여부를 보존한다."""
+    """작성자의 최신 유효 제보를 보존한다.
+
+    같은 종류·ID의 중복 신호가 서로 다른 값을 내면 values가 여러 개가 되어 충돌로 남는다.
+    """
 
     author_key: str
     created_at: datetime
@@ -61,20 +78,21 @@ def _latest_votes(
     signals: Iterable[tuple[int, JudgedSignal]],
     value_of: Callable[[JudgedSignal], Vote | None],
 ) -> tuple[AuthorVote[Vote], ...]:
-    latest: dict[str, tuple[datetime, set[Vote], list[int]]] = {}
+    latest: dict[str, tuple[tuple[datetime, int, int], set[Vote], list[int]]] = {}
     for index, signal in signals:
         value = value_of(signal)
         if value is None:
             continue
+        order = _recency(signal)
         current = latest.get(signal.author_key)
-        if current is None or signal.created_at > current[0]:
-            latest[signal.author_key] = (signal.created_at, {value}, [index])
-        elif signal.created_at == current[0]:
+        if current is None or order > current[0]:
+            latest[signal.author_key] = (order, {value}, [index])
+        elif order == current[0]:
             current[1].add(value)
             current[2].append(index)
     return tuple(
-        AuthorVote(author, created_at, tuple(indices), frozenset(values))
-        for author, (created_at, values, indices) in latest.items()
+        AuthorVote(author, order[0], tuple(indices), frozenset(values))
+        for author, (order, values, indices) in latest.items()
     )
 
 
@@ -83,7 +101,14 @@ def _stage_of(signal: JudgedSignal) -> Stage | None:
 
 
 def _causes_of(signal: JudgedSignal) -> frozenset[CauseCode] | None:
-    return signal.causes or None
+    """유효 제보(단계 또는 구체 원인)의 원인 집합을 돌려준다(U12).
+
+    최신 유효 제보에 원인이 없으면 빈 집합이 선택되어 이전 원인을 버린다. 단계도 원인도
+    없는 신호는 유효 제보가 아니므로 None으로 건너뛰어 이전 원인을 지우지 않는다(U13-B).
+    """
+    if signal.congestion_level is None and not signal.causes:
+        return None
+    return signal.causes
 
 
 def aggregate_signals(

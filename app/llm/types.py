@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-ModelName = Literal["api", "ocr", "slm"]
+ModelName = Literal["api_1", "api_2", "ocr", "slm"]
 
 
 @dataclass(frozen=True)

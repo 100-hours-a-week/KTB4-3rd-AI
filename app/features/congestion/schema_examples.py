@@ -33,7 +33,7 @@ REQUEST_EXAMPLE: dict[str, JsonValue] = {
                 },
                 {
                     "post_id": 20486,
-                    "title": "잠실역 현재 상황 추가 제보",
+                    "title": "잠실역 아직도 이동하기 힘들어요",
                     "content": "아직 잠실역에 있어요. 행사 인파 때문에 지금도 이동하기 힘들어요.",
                     "author_key": "member_4821",
                     "created_at": "2026-10-13T17:59:00+09:00",

@@ -1,7 +1,8 @@
 """이미 판정된 제보의 시간 선별과 스팟 집계 규칙."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from itertools import count
 
 import pytest
 
@@ -15,12 +16,18 @@ AS_OF = datetime(2026, 10, 7, 6, 0, tzinfo=timezone.utc)
 CUTOFF = AS_OF - timedelta(minutes=20)
 
 
+_IDS = count(1)
+
+
 @dataclass(frozen=True)
 class Judgment:
     author_key: str
     created_at: datetime
     congestion_level: str | None = None
     causes: frozenset[str] = frozenset()
+    signal_type: str = "post"
+    # 만든 순서대로 커지는 ID. 같은 시각 순서를 시험할 때만 직접 지정한다.
+    signal_id: int = field(default_factory=lambda: next(_IDS))
 
 
 def aggregate(*signals: Judgment) -> dict[str, object]:
@@ -143,15 +150,55 @@ def test_no_new_concrete_cause_does_not_clear_earlier_cause() -> None:
     }
 
 
-def test_same_timestamp_conflicts_exclude_only_that_authors_votes() -> None:
+def test_latest_valid_report_without_cause_drops_earlier_cause() -> None:
+    """최신 유효 단계 제보에 원인이 없으면 같은 작성자의 앞선 원인을 버린다(U12)."""
     assert aggregate(
-        Judgment("a", AS_OF, "HIGH", frozenset({"EVENT"})),
-        Judgment("a", AS_OF, "LOW", frozenset({"DELAY"})),
-        Judgment("b", AS_OF, "MEDIUM", frozenset({"EVENT"})),
+        Judgment("a", AS_OF - timedelta(minutes=2), "MEDIUM", frozenset({"BREAKDOWN"})),
+        Judgment("a", AS_OF - timedelta(minutes=1), "LOW"),
     ) == {
-        "congestion_level": "MEDIUM",
+        "congestion_level": "LOW",
         "report_count": 1,
-        "causes": [{"cause_code": "EVENT", "report_count": 1}],
+        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
+    }
+
+
+def test_same_timestamp_prefers_larger_id_within_same_type() -> None:
+    """같은 시각의 같은 종류 신호는 ID가 큰 쪽이 최신이다(U11)."""
+    assert aggregate(
+        Judgment("a", AS_OF, "HIGH", frozenset({"EVENT"}), "post", 1),
+        Judgment("a", AS_OF, "LOW", frozenset({"DELAY"}), "post", 2),
+        Judgment("b", AS_OF, "MEDIUM", frozenset({"EVENT"}), "post", 3),
+    ) == {
+        "congestion_level": "UNKNOWN",
+        "report_count": 2,
+        "causes": [
+            {"cause_code": "DELAY", "report_count": 1},
+            {"cause_code": "EVENT", "report_count": 1},
+        ],
+    }
+
+
+def test_same_timestamp_comment_is_newer_than_post() -> None:
+    """원글과 댓글은 ID 번호열이 달라 크기를 비교하지 않고 댓글을 최신으로 본다(U11)."""
+    assert aggregate(
+        Judgment("a", AS_OF, "HIGH", frozenset({"EVENT"}), "post", 900),
+        Judgment("a", AS_OF, "LOW", signal_type="comment", signal_id=5),
+    ) == {
+        "congestion_level": "LOW",
+        "report_count": 1,
+        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
+    }
+
+
+def test_duplicate_signal_with_conflicting_values_is_excluded() -> None:
+    """종류·ID까지 같은 중복 신호의 판정이 다르면 그 작성자를 집계에서 뺀다."""
+    assert aggregate(
+        Judgment("a", AS_OF, "HIGH", signal_id=7),
+        Judgment("a", AS_OF, "LOW", signal_id=7),
+    ) == {
+        "congestion_level": "UNKNOWN",
+        "report_count": 0,
+        "causes": [],
     }
 
 
@@ -177,7 +224,9 @@ def test_trace_keeps_original_source_indices_after_window_filtering() -> None:
     )
 
     assert trace.stage_votes[0].signal_indices == (2,)
-    assert trace.cause_votes[0].signal_indices == (1,)
+    # 최신 유효 제보(인덱스 2)에 원인이 없으므로 원인 선택도 인덱스 2다(U12).
+    assert trace.cause_votes[0].signal_indices == (2,)
+    assert trace.cause_votes[0].value == frozenset()
     assert trace.stage_counts == {"LOW": 1, "MEDIUM": 0, "HIGH": 0}
     assert trace.result.report_count == 1
 

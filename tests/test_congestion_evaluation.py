@@ -253,7 +253,7 @@ def test_last_load_failure_cannot_exit_successfully(
     output = tmp_path / "output"
     output.mkdir()
     for name, value in {
-        "OPENAI_API_KEY": "test-key",
+        "OPENAI_API_KEY_2": "test-key",
         "CONGESTION_RELEVANCE_EXCLUDE_BELOW": "0.2",
         "CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE": "0.8",
         "CONGESTION_DECISIONS_TIMEOUT_SECONDS": "30",

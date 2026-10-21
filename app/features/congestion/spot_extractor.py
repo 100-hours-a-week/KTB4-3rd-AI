@@ -66,6 +66,8 @@ def assess_spot(model_input: SpotLLMInput | None, complete: Callable[[str], str]
 
     assessed = tuple(
         AssessedSignal(
+            signal_type=target.signal_type,
+            signal_id=target.signal_id,
             author_key=target.author_key,
             created_at=target.created_at,
             congestion_level=by_key[(target.signal_type, target.signal_id)].congestion_level,

@@ -15,7 +15,7 @@ CASE = ROOT / "examples/congestion/spot-preview.json"
 
 def run_preview(*args: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
-    env.pop("OPENAI_API_KEY", None)
+    env.pop("OPENAI_API_KEY_2", None)
     return subprocess.run(
         [sys.executable, "-m", "app.features.congestion.preview", *args],
         cwd=ROOT,
@@ -45,19 +45,16 @@ def test_mock_preview_shows_selection_original_metadata_and_explicit_window_aggr
         "RELATED",
         "UNRELATED",
     ]
-    assert result["judgments"][0]["author_key"] == "repeat"
+    assert result["judgments"][0]["author_key"] == "u1"
     assert result["judgments"][0]["created_at"] == "2026-10-12T11:15:00+09:00"
     assert result["aggregate"] == {
         "congestion_level": "LOW",
         "report_count": 1,
-        "causes": [
-            {"cause_code": "BREAKDOWN", "report_count": 1},
-            {"cause_code": "EVENT", "report_count": 1},
-        ],
+        "causes": [{"cause_code": "BREAKDOWN", "report_count": 1}],
     }
     assert result["summary"] == (
         "제보 기준 혼잡도는 한산이며, 혼잡 제보자는 1명입니다. "
-        "제보된 원인은 차량·설비 고장(1명), 행사·공연·경기(1명)입니다."
+        "제보된 원인은 차량·설비 고장(1명)입니다."
     )
 
 

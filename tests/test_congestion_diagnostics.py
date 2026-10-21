@@ -32,7 +32,7 @@ def diagnose(case: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def test_trace_selects_latest_stage_and_independent_earlier_cause(
+def test_trace_drops_earlier_cause_when_latest_valid_report_has_none(
     case: dict[str, Any],
 ) -> None:
     result = diagnose(case)
@@ -42,7 +42,7 @@ def test_trace_selects_latest_stage_and_independent_earlier_cause(
     assert trace["decision"] == "UNIQUE_TOP"
     assert trace["stage_votes"] == [
         {
-            "author_key": "repeat",
+            "author_key": "u1",
             "created_at": "2026-10-12T11:55:00+09:00",
             "status": "COUNTED",
             "sources": [{"signal_type": "post", "signal_id": 3}],
@@ -50,12 +50,13 @@ def test_trace_selects_latest_stage_and_independent_earlier_cause(
         }
     ]
     causes = {vote["author_key"]: vote for vote in trace["cause_votes"]}
-    assert causes["repeat"]["sources"] == [{"signal_type": "post", "signal_id": 1}]
-    assert causes["repeat"]["causes"] == ["EVENT"]
-    assert causes["cause-only"]["sources"] == [
+    # 같은 작성자의 최신 유효 제보(post 3)에 원인이 없으므로 앞선 EVENT를 버린다(U12).
+    assert causes["u1"]["sources"] == [{"signal_type": "post", "signal_id": 3}]
+    assert causes["u1"]["causes"] == []
+    assert causes["u2"]["sources"] == [
         {"signal_type": "comment", "signal_id": 1}
     ]
-    assert causes["cause-only"]["causes"] == ["BREAKDOWN"]
+    assert causes["u2"]["causes"] == ["BREAKDOWN"]
     assert result["aggregate"]["report_count"] == 1
 
 
@@ -78,37 +79,30 @@ def test_trace_explains_two_author_tie_without_counting_older_stage(
     assert result["aggregate"]["report_count"] == 2
 
 
-@pytest.mark.parametrize("conflict", [True, False])
-def test_trace_distinguishes_same_time_conflict_from_identical_votes(
-    case: dict[str, Any], conflict: bool
+@pytest.mark.parametrize(("level", "cause"), [("LOW", "DELAY"), ("HIGH", "EVENT")])
+def test_trace_selects_larger_post_id_at_same_time(
+    case: dict[str, Any], level: str, cause: str
 ) -> None:
+    """같은 작성자·같은 시각의 원글끼리는 ID가 큰 원글을 최신으로 고른다(U11)."""
     case["request"]["spots"][0]["post_bundles"][1]["created_at"] = (
         "2026-10-12T11:15:00+09:00"
     )
     latest = case["model_output"]["signals"][0]
-    latest["congestion_level"] = "LOW" if conflict else "HIGH"
-    latest["causes"] = ["DELAY"] if conflict else ["EVENT"]
+    latest["congestion_level"] = level
+    latest["causes"] = [cause]
 
     result = diagnose(case)
     trace = result["aggregation_trace"]
     stage = trace["stage_votes"][0]
 
-    assert stage["sources"] == [
-        {"signal_type": "post", "signal_id": 1},
-        {"signal_type": "post", "signal_id": 3},
-    ]
-    assert stage["status"] == ("CONFLICT" if conflict else "COUNTED")
-    assert stage["congestion_level"] == (None if conflict else "HIGH")
-    assert trace["stage_counts"] == {
-        "LOW": 0,
-        "MEDIUM": 0,
-        "HIGH": 0 if conflict else 1,
-    }
-    assert trace["decision"] == ("NO_VALID_STAGE" if conflict else "UNIQUE_TOP")
+    assert stage["sources"] == [{"signal_type": "post", "signal_id": 3}]
+    assert stage["status"] == "COUNTED"
+    assert stage["congestion_level"] == level
+    assert trace["decision"] == "UNIQUE_TOP"
     causes = {vote["author_key"]: vote for vote in trace["cause_votes"]}
-    assert causes["repeat"]["status"] == ("CONFLICT" if conflict else "COUNTED")
-    assert causes["repeat"]["causes"] == (None if conflict else ["EVENT"])
-    assert result["aggregate"]["report_count"] == (0 if conflict else 1)
+    assert causes["u1"]["sources"] == [{"signal_type": "post", "signal_id": 3}]
+    assert causes["u1"]["causes"] == [cause]
+    assert result["aggregate"]["report_count"] == 1
 
 
 def test_trace_has_no_votes_when_classifier_excludes_every_candidate(

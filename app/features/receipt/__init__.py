@@ -1,1 +1,0 @@
-"""Receipt analysis feature."""

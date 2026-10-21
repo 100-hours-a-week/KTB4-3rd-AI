@@ -5,7 +5,7 @@ import threading
 from typing import Any, TypedDict
 
 from ...core.exceptions import InternalError, ModelNotReady
-from ...core.logging import get_logger
+from ...core.logging import get_logger, log_import_error
 from ..types import ImageBytes
 
 logger = get_logger(__name__)
@@ -49,7 +49,7 @@ class OcrEngine:
             try:
                 pages = pipeline.predict(tmp.name)
             except Exception as exc:
-                logger.exception("ocr inference failed")
+                logger.exception("ocr inference failed: bytes=%s type=%s", len(image.content), image.media_type)
                 raise InternalError() from exc
         return "\n".join(line for page in pages for line in page_lines(page))
 
@@ -60,8 +60,8 @@ class OcrEngine:
             try:
                 from paddleocr import PaddleOCR
             except ImportError as exc:
-                logger.exception("paddleocr is not installed")
-                raise ModelNotReady("ocr model is not ready") from exc
+                log_import_error(logger, "ocr", ("paddleocr",), exc)
+                raise ModelNotReady() from exc
             try:
                 self.pipeline = PaddleOCR(
                     text_detection_model_name=DET,
@@ -73,6 +73,6 @@ class OcrEngine:
                     device=self.device,
                 )
             except Exception as exc:
-                logger.exception("ocr model load failed")
-                raise ModelNotReady("ocr model is not ready") from exc
+                logger.exception("ocr model load failed: device=%s", self.device)
+                raise ModelNotReady() from exc
             return self.pipeline

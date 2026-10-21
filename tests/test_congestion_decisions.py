@@ -70,7 +70,7 @@ def prepared() -> PreparedSpot:
 def test_bundle_requests_classify_each_current_signal_and_keep_parent_context(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     received: list[dict[str, Any]] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -136,7 +136,7 @@ def test_bundle_requests_classify_each_current_signal_and_keep_parent_context(
 def test_invalid_answers_cannot_produce_partial_scores(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, body: Any
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     scorer = DecisionsRelevanceScorer(
         timeout=5, transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
     )
@@ -148,7 +148,7 @@ def test_invalid_answers_cannot_produce_partial_scores(
 def test_invalid_probability_is_rejected(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, probability: Any
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     body = {
         "answers": [
             {"type": "predicate", "name": "comment_1", "probability": probability},
@@ -165,7 +165,7 @@ def test_invalid_probability_is_rejected(
 def test_non_json_response_is_rejected(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     scorer = DecisionsRelevanceScorer(
         timeout=5, transport=httpx.MockTransport(lambda _: httpx.Response(200, text="not json"))
     )
@@ -177,7 +177,7 @@ def test_non_json_response_is_rejected(
 def test_http_errors_are_reported_as_provider_errors(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, status: int
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     scorer = DecisionsRelevanceScorer(
         timeout=5, transport=httpx.MockTransport(lambda _: httpx.Response(status))
     )
@@ -188,7 +188,7 @@ def test_http_errors_are_reported_as_provider_errors(
 def test_timeout_after_a_successful_bundle_returns_no_partial_scores(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
 
     def first_success_then_timeout(request: httpx.Request) -> httpx.Response:
         questions = json.loads(request.content)["questions"]
@@ -214,7 +214,7 @@ def test_timeout_after_a_successful_bundle_returns_no_partial_scores(
 def test_missing_key_prevents_network_call(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
 
     def unexpected(_request: httpx.Request) -> httpx.Response:
         pytest.fail("키 없이 네트워크가 호출됨")
@@ -225,7 +225,7 @@ def test_missing_key_prevents_network_call(
 
 
 def test_empty_spot_needs_no_key_or_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
     prepared = prepare_spot(
         CongestionSpotInput(spot_id=1, post_bundles=[]),
         datetime.fromisoformat("2026-10-12T12:00:00+09:00"),

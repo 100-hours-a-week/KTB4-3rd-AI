@@ -251,8 +251,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.repeats < 1 or len(args.sizes) != len(set(args.sizes)):
         parser.error("반복은 양수, 입력량은 중복 없이 지정하세요")
-    if not os.environ.get("OPENAI_API_KEY"):
-        parser.error("OPENAI_API_KEY가 필요합니다")
+    if not os.environ.get("OPENAI_API_KEY_2"):
+        parser.error("OPENAI_API_KEY_2가 필요합니다")
     settings = {
         name: float(os.environ[name])
         for name in (
