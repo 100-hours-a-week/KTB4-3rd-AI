@@ -10,8 +10,11 @@ uv sync
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-The congestion analysis cache is process-local, so the API must run with exactly one worker
-until an external cache such as Redis is introduced.
+Run one worker for this project setup. The current congestion HTTP analysis recalculates each
+request and does not use the old process-local congestion cache.
+
+Spring 연동 요청·응답과 미합의 운영 항목은 [혼잡도 연동 제안](docs/congestion/spring-integration.md)에
+정리했다.
 
 ## Checks
 
