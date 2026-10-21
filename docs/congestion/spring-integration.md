@@ -123,6 +123,6 @@ Spring은 스팟에 속한 원글·댓글의 현재 전체 데이터를 조회�
 
 ## 배포 전 확인
 
-혼잡도 OpenAI 키는 `OPENAI_API_KEY_2`다. 관련성 임계값 `CONGESTION_RELEVANCE_EXCLUDE_BELOW`, `CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE`와 Decisions 타임아웃 `CONGESTION_DECISIONS_TIMEOUT_SECONDS`에는 운영 기본값이 없다. 설정 누락 시 후보가 있는 스팟은 실패한다.
+혼잡도 OpenAI 키 `OPENAI_API_KEY_2`는 배포 환경에 넣어야 한다. 관련성 임계값 0.2·0.8과 Decisions 동작별 타임아웃 30초는 `app/features/congestion/config.py`에 모아 둔 **합성 평가용 임시값**이다. 실데이터 검증과 Spring의 응답 대기시간 합의 후 운영값을 확정해야 한다. 키가 없으면 후보가 있는 스팟은 실패한다.
 
 최근 판정 규칙 변경 후 실모델 재평가와 실제 게시글 라벨 검증은 남아 있다. AI에는 요청 전체의 확정 마감 시간, 요청 간 전역 동시성 상한, 큰 스팟 입력 분할이 없다. Spring의 응답 대기시간과 실제 입력량을 받은 뒤 이 수치를 정해야 한다. 이미지 분석의 60초 대기시간을 혼잡도 계약에 자동 적용하지 않는다.

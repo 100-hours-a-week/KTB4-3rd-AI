@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>혼잡도 분석 · 지금 어디까지 왔나</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #17243a; background: #f5f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.58; }
+    main { max-width: 1080px; margin: auto; padding: 38px 24px 72px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(2rem, 4vw, 3.1rem); line-height: 1.2; letter-spacing: -.04em; margin-bottom: 14px; }
+    h2 { font-size: 1.35rem; letter-spacing: -.025em; margin-bottom: 18px; }
+    h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    p, li { color: #34435a; }
+    a { color: #174eb4; text-underline-offset: 3px; }
+    .eyebrow { font-size: .86rem; font-weight: 750; color: #42659a; letter-spacing: .04em; margin-bottom: 10px; }
+    .hero { background: #fff; border: 1px solid #dfe6f0; border-radius: 20px; padding: 34px; box-shadow: 0 10px 30px #253b6410; }
+    .hero p { font-size: 1.06rem; margin-bottom: 0; max-width: 800px; }
+    .answer { color: #102b59; font-weight: 800; }
+    .meta { margin-top: 18px; font-size: .84rem; color: #68778b; }
+    section { margin-top: 38px; }
+    .strip, .grid { display: grid; gap: 12px; }
+    .strip { grid-template-columns: repeat(4, 1fr); }
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .tile, .card { background: #fff; border: 1px solid #dfe6f0; border-radius: 15px; padding: 20px; }
+    .tile strong { display: block; margin: 8px 0 4px; font-size: 1.02rem; }
+    .tile p { font-size: .89rem; margin: 0; }
+    .tag { display: inline-block; padding: 3px 9px; border-radius: 99px; font-size: .76rem; font-weight: 800; }
+    .done { color: #176243; background: #ddf4e8; }
+    .pending { color: #815013; background: #fff0cf; }
+    .blocked { color: #923638; background: #fde9e9; }
+    .card h3 { display: flex; align-items: center; gap: 9px; }
+    .number { display: inline-grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; color: #fff; background: #285db5; font-size: .8rem; }
+    ul { padding-left: 1.25rem; margin: 10px 0 0; }
+    li + li { margin-top: 6px; }
+    .note { background: #eaf0fc; border-left: 4px solid #406ec2; border-radius: 8px; padding: 16px 18px; margin-top: 16px; }
+    .note p { margin: 0; }
+    .flow { display: flex; align-items: stretch; gap: 8px; }
+    .flow div { flex: 1; padding: 14px 12px; border-radius: 11px; background: #eaf0fa; text-align: center; font-size: .9rem; font-weight: 700; }
+    .flow span { align-self: center; color: #56719d; font-weight: 800; }
+    .small { font-size: .91rem; }
+    .footer { border-top: 1px solid #dce4ee; padding-top: 20px; margin-top: 42px; color: #66758a; font-size: .88rem; }
+    @media (max-width: 760px) { main { padding: 18px 14px 48px; } .hero { padding: 24px; } .strip, .grid { grid-template-columns: 1fr; } .flow { flex-direction: column; } .flow span { transform: rotate(90deg); } }
+    @media print { :root { background: #fff; } main { max-width: none; padding: 0; } .hero, .tile, .card { box-shadow: none; break-inside: avoid; } a { color: inherit; } }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="eyebrow">혼잡도 분석 · 2026년 10월 22일 코드 기준</div>
+    <h1>지금 어디까지 왔나</h1>
+    <p><span class="answer">API 자체는 이미 구현돼 있습니다.</span> 남은 일은 Spring에서 실제 데이터를 보내고 결과를 저장·표시하는 연동, 실제 데이터·모델 검증, 운영 기준 합의입니다. 아직 서비스 출시 완료로 판단할 단계는 아닙니다.</p>
+    <div class="meta">기준 브랜치: feat/congestion-analysis · 현재 분석 경로: A 방식 · B 방식은 브랜치에서 제외</div>
+  </header>
+
+  <section aria-labelledby="status-title">
+    <h2 id="status-title">한눈에 보는 상태</h2>
+    <div class="strip">
+      <div class="tile"><span class="tag done">구현됨</span><strong>AI API</strong><p>요청 검증 → 관련성·개별 판정 → 작성자별 집계 → 응답</p></div>
+      <div class="tile"><span class="tag done">준비됨</span><strong>Spring 전달 문서</strong><p>요청·응답 예시와 실패 처리, 합의할 질문 정리</p></div>
+      <div class="tile"><span class="tag pending">진행 필요</span><strong>실제 연동·검증</strong><p>Spring 연결, 실제 게시글 평가, 처리 시간 측정</p></div>
+      <div class="tile"><span class="tag blocked">합의 필요</span><strong>운영 정책</strong><p>조회 주기 경계, 실패·만료 처리, 호출 시간과 인증</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="flow-title">
+    <h2 id="flow-title">실제 서비스에서 이어질 흐름</h2>
+    <div class="flow" aria-label="Spring이 데이터를 보내고 AI가 분석한 뒤 Spring이 결과를 저장하고 표시한다">
+      <div>Spring<br>원글·댓글 조회</div><span aria-hidden="true">→</span>
+      <div>POST /congestion-analyses<br>스팟별 전체 입력</div><span aria-hidden="true">→</span>
+      <div>AI<br>스팟별 단계·원인·요약 반환</div><span aria-hidden="true">→</span>
+      <div>Spring<br>성공·실패 확인 후 저장·표시</div>
+    </div>
+    <div class="note"><p><strong>주의:</strong> HTTP 200이어도 일부 스팟은 <code>FAILED</code>일 수 있습니다. Spring은 각 스팟의 <code>analysis_status</code>를 확인해야 합니다.</p></div>
+  </section>
+
+  <section aria-labelledby="work-title">
+    <h2 id="work-title">다음에 할 일</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><span class="number">1</span> 내가 할 일 · AI</h3>
+        <ul>
+          <li>현재 데이터셋 v1.2로 실모델 평가를 다시 돌려 판정 오류를 확인한다. 이전 60/60 결과는 이전 제목·정답 기준이다.</li>
+          <li>실제 게시글을 라벨링해 관련성 임계값 <strong>0.2 / 0.8</strong>을 조정하거나 승인한다. 지금 값은 합성 평가용 임시값이다.</li>
+          <li>Spring의 예상 입력량과 대기시간을 받은 뒤 큰 요청의 처리 시간·실패율을 검증한다.</li>
+          <li>배포 환경에 혼잡도용 <code>OPENAI_API_KEY_2</code>가 주입되는지 확인한다.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3><span class="number">2</span> Spring BE와 함께 할 일</h3>
+        <ul>
+          <li>스팟별 원글·댓글 전체를 조회해 API 요청을 보낸다. 조회 실패와 제보 0건을 구분한다.</li>
+          <li>응답의 스팟별 <code>SUCCESS / FAILED</code>를 확인하고 이전 결과의 저장·만료·표시 방식을 구현한다.</li>
+          <li>10분·60분 요청 스케줄과 재요청·중복 응답 처리를 연결한다.</li>
+          <li>연동 문서의 예시 요청으로 양쪽 로그와 결과를 함께 확인한다.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="decisions-title">
+    <h2 id="decisions-title">팀과 먼저 정할 것</h2>
+    <div class="grid">
+      <div class="card"><h3>데이터와 시간</h3><ul><li>출퇴근 시간의 시작·끝, 기준 시간대, 10분↔60분 전환 시 첫 조회 범위</li><li>수정·삭제된 글과 오래된 부모 글의 새 댓글을 어떻게 조회할지</li><li>작성자 식별자 <code>author_key</code>와 스팟 배정 기준</li></ul></div>
+      <div class="card"><h3>실패와 운영</h3><ul><li>스팟 <code>FAILED</code>, 요청 전체 422·5xx, 응답 유실 시 이전 결과 처리</li><li>요청량·최대 입력량, Spring 대기시간, 중복·역순 응답 처리</li><li>서버 간 인증, 실제 호출 URL, 요청 추적 ID</li></ul></div>
+    </div>
+    <p class="small" style="margin-top: 16px">세부 필드와 JSON 예시가 필요하면 <a href="spring-integration.md">Spring 연동 문서</a>를 그대로 전달하면 됩니다. 이 페이지는 업무 판단용 요약입니다.</p>
+  </section>
+
+  <section aria-labelledby="settings-title">
+    <h2 id="settings-title">설정값은 이렇게 구분했습니다</h2>
+    <div class="grid">
+      <div class="card"><h3>혼잡도 모듈 안의 임시값</h3><p>관련성 제외 기준 0.2, 관련 판정 기준 0.8, Decisions 동작별 타임아웃 30초를 <code>app/features/congestion/config.py</code>에 둡니다. 실제 데이터와 응답 시간 검증 후 바꿀 수 있습니다.</p></div>
+      <div class="card"><h3>배포 환경에 둘 비밀값</h3><p><code>OPENAI_API_KEY_2</code>는 환경변수로 유지합니다. 키가 없으면 제보가 있는 스팟 분석은 실패합니다. 30초는 전체 HTTP 요청 마감 시간이 아닙니다.</p></div>
+    </div>
+  </section>
+
+  <footer class="footer">이 페이지는 현재 코드와 테스트로 확인한 구현 범위, 그리고 아직 검증·합의하지 않은 항목을 분리해 적었습니다. 과거 위키·실험 문서는 구현 현황의 기준으로 사용하지 않았습니다.</footer>
+</main>
+</body>
+</html>
