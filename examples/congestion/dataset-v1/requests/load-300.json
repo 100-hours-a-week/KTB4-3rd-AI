@@ -1,0 +1,2017 @@
+{
+  "request_id": "synthetic-load-v1-300",
+  "as_of": "2026-10-13T18:00:00+09:00",
+  "window_minutes": 10,
+  "spots": [
+    {
+      "spot_id": 1,
+      "post_bundles": [
+        {
+          "post_id": 1,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-0-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 11,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-0-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 12,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-0-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 13,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-0-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 14,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-0-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 7,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-6-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 71,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-6-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 72,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-6-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 73,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-6-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 74,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-6-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 13,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-12-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 131,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-12-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 132,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-12-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 133,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-12-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 134,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-12-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 19,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-18-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 191,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-18-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 192,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-18-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 193,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-18-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 194,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-18-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 25,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-24-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 251,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-24-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 252,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-24-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 253,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-24-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 254,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-24-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 31,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-30-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 311,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-30-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 312,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-30-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 313,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-30-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 314,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-30-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 37,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-36-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 371,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-36-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 372,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-36-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 373,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-36-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 374,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-36-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 43,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-42-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 431,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-42-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 432,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-42-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 433,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-42-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 434,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-42-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 49,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-48-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 491,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-48-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 492,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-48-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 493,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-48-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 494,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-48-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 55,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-54-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 551,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-54-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 552,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-54-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 553,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-54-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 554,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-54-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spot_id": 2,
+      "post_bundles": [
+        {
+          "post_id": 2,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-1-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 21,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-1-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 22,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-1-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 23,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-1-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 24,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-1-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 8,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-7-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 81,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-7-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 82,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-7-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 83,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-7-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 84,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-7-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 14,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-13-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 141,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-13-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 142,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-13-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 143,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-13-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 144,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-13-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 20,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-19-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 201,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-19-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 202,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-19-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 203,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-19-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 204,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-19-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 26,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-25-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 261,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-25-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 262,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-25-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 263,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-25-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 264,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-25-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 32,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-31-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 321,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-31-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 322,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-31-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 323,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-31-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 324,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-31-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 38,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-37-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 381,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-37-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 382,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-37-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 383,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-37-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 384,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-37-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 44,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-43-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 441,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-43-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 442,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-43-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 443,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-43-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 444,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-43-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 50,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-49-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 501,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-49-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 502,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-49-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 503,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-49-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 504,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-49-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 56,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-55-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 561,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-55-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 562,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-55-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 563,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-55-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 564,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-55-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spot_id": 3,
+      "post_bundles": [
+        {
+          "post_id": 3,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-2-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 31,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-2-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 32,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-2-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 33,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-2-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 34,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-2-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 9,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-8-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 91,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-8-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 92,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-8-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 93,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-8-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 94,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-8-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 15,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-14-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 151,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-14-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 152,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-14-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 153,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-14-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 154,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-14-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 21,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-20-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 211,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-20-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 212,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-20-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 213,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-20-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 214,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-20-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 27,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-26-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 271,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-26-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 272,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-26-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 273,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-26-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 274,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-26-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 33,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-32-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 331,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-32-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 332,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-32-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 333,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-32-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 334,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-32-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 39,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-38-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 391,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-38-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 392,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-38-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 393,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-38-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 394,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-38-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 45,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-44-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 451,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-44-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 452,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-44-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 453,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-44-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 454,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-44-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 51,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-50-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 511,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-50-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 512,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-50-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 513,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-50-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 514,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-50-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 57,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-56-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 571,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-56-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 572,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-56-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 573,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-56-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 574,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-56-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spot_id": 4,
+      "post_bundles": [
+        {
+          "post_id": 4,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-3-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 41,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-3-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 42,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-3-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 43,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-3-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 44,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-3-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 10,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-9-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 101,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-9-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 102,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-9-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 103,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-9-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 104,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-9-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 16,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-15-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 161,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-15-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 162,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-15-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 163,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-15-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 164,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-15-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 22,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-21-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 221,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-21-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 222,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-21-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 223,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-21-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 224,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-21-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 28,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-27-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 281,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-27-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 282,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-27-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 283,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-27-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 284,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-27-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 34,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-33-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 341,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-33-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 342,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-33-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 343,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-33-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 344,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-33-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 40,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-39-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 401,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-39-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 402,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-39-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 403,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-39-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 404,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-39-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 46,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-45-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 461,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-45-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 462,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-45-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 463,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-45-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 464,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-45-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 52,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-51-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 521,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-51-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 522,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-51-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 523,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-51-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 524,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-51-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 58,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-57-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 581,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-57-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 582,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-57-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 583,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-57-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 584,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-57-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spot_id": 5,
+      "post_bundles": [
+        {
+          "post_id": 5,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-4-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 51,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-4-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 52,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-4-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 53,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-4-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 54,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-4-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 11,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-10-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 111,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-10-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 112,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-10-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 113,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-10-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 114,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-10-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 17,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-16-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 171,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-16-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 172,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-16-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 173,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-16-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 174,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-16-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 23,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-22-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 231,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-22-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 232,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-22-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 233,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-22-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 234,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-22-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 29,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-28-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 291,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-28-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 292,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-28-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 293,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-28-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 294,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-28-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 35,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-34-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 351,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-34-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 352,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-34-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 353,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-34-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 354,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-34-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 41,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-40-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 411,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-40-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 412,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-40-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 413,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-40-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 414,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-40-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 47,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-46-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 471,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-46-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 472,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-46-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 473,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-46-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 474,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-46-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 53,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-52-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 531,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-52-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 532,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-52-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 533,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-52-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 534,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-52-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 59,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-58-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 591,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-58-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 592,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-58-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 593,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-58-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 594,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-58-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "spot_id": 6,
+      "post_bundles": [
+        {
+          "post_id": 6,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-5-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 61,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-5-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 62,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-5-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 63,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-5-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 64,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-5-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 12,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-11-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 121,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-11-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 122,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-11-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 123,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-11-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 124,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-11-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 18,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-17-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 181,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-17-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 182,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-17-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 183,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-17-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 184,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-17-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 24,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-23-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 241,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-23-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 242,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-23-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 243,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-23-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 244,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-23-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 30,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-29-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 301,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-29-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 302,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-29-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 303,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-29-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 304,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-29-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 36,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-35-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 361,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-35-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 362,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-35-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 363,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-35-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 364,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-35-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 42,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-41-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 421,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-41-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 422,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-41-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 423,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-41-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 424,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-41-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 48,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-47-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 481,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-47-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 482,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-47-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 483,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-47-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 484,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-47-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 54,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-53-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 541,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-53-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 542,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-53-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 543,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-53-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 544,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-53-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        },
+        {
+          "post_id": 60,
+          "title": "행사 관람객 몰려서 입구 줄 길어요",
+          "content": "지금 역 입구에 있습니다. 행사 관람객이 몰려서 입장 대기줄이 길어요.",
+          "author_key": "synthetic-load-300-59-post",
+          "created_at": "2026-10-13T17:57:00+09:00",
+          "comments": [
+            {
+              "comment_id": 601,
+              "content": "저도 지금 역 입구에 있는데 사람이 많지만 이동할 만합니다.",
+              "author_key": "synthetic-load-300-59-comment-1",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 602,
+              "content": "저는 현재 이 역 승강장에 있습니다. 사람이 엄청 많아요.",
+              "author_key": "synthetic-load-300-59-comment-2",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 603,
+              "content": "근처에서 휴대폰 충전 케이블을 살 수 있는 가게가 있나요?",
+              "author_key": "synthetic-load-300-59-comment-3",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            },
+            {
+              "comment_id": 604,
+              "content": "다음 주 독서 모임에서 읽을 소설을 추천해 주세요.",
+              "author_key": "synthetic-load-300-59-comment-4",
+              "created_at": "2026-10-13T17:58:00+09:00"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
