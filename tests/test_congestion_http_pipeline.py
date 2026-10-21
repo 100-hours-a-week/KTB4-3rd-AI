@@ -134,20 +134,25 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
     ]
 
 
-@pytest.mark.parametrize("config", ["missing", "invalid"])
-def test_missing_or_invalid_relevance_settings_fail_only_nonempty_spot(
+def test_default_analyzer_uses_congestion_module_settings(
     monkeypatch: pytest.MonkeyPatch,
-    config: str,
 ) -> None:
     for name in (
         "CONGESTION_RELEVANCE_EXCLUDE_BELOW",
         "CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE",
         "CONGESTION_DECISIONS_TIMEOUT_SECONDS",
-        "OPENAI_API_KEY_2",
     ):
-        monkeypatch.delenv(name, raising=False)
-    if config == "invalid":
-        monkeypatch.setenv("CONGESTION_RELEVANCE_EXCLUDE_BELOW", "not-a-probability")
+        monkeypatch.setenv(name, "invalid-old-env-value")
+    scorer, policy = LLMCongestionAnalyzer()._configured_scorer()
+    assert policy == RelevancePolicy(0.2, 0.8)
+    assert isinstance(scorer, DecisionsRelevanceScorer)
+    assert scorer._timeout == 30.0
+
+
+def test_missing_model_key_fails_only_nonempty_spot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
     case_path = Path(__file__).resolve().parents[1] / "examples/congestion/spot-preview.json"
     data = json.loads(case_path.read_text())["request"]
     data["spots"].append({"spot_id": 8, "post_bundles": []})

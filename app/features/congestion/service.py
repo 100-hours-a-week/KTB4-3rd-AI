@@ -1,6 +1,5 @@
 """스팟별 분석기 경계와 요청 결과 조립."""
 
-import os
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import datetime, timedelta
@@ -9,6 +8,7 @@ from typing import Protocol
 from ...core.exceptions import ModelNotReady, UpstreamError
 from ...core.logging import get_logger
 from .aggregator import aggregate_signals
+from .config import DECISIONS_TIMEOUT_SECONDS, RELEVANCE_POLICY
 from .decisions import DecisionsRelevanceScorer
 from .extractor import ModelOutputInvalid, call_api_model
 from .models import (
@@ -94,17 +94,7 @@ class LLMCongestionAnalyzer:
     def _configured_scorer(self) -> tuple[RelevanceScorer, RelevancePolicy]:
         if self._score is not None and self._policy is not None:
             return self._score, self._policy
-        try:
-            policy = RelevancePolicy(
-                exclude_below=float(os.environ["CONGESTION_RELEVANCE_EXCLUDE_BELOW"]),
-                related_at_or_above=float(os.environ["CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE"]),
-            )
-            score = DecisionsRelevanceScorer(
-                timeout=float(os.environ["CONGESTION_DECISIONS_TIMEOUT_SECONDS"])
-            )
-        except (KeyError, ValueError) as exc:
-            raise ModelNotReady("congestion relevance configuration is not ready") from exc
-        return score, policy
+        return DecisionsRelevanceScorer(timeout=DECISIONS_TIMEOUT_SECONDS), RELEVANCE_POLICY
 
 
 def get_analyzer() -> CongestionAnalyzer:

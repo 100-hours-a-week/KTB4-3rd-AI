@@ -18,6 +18,7 @@ from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
 
+from .config import DECISIONS_TIMEOUT_SECONDS, RELEVANCE_POLICY
 from .decisions import DecisionsRelevanceScorer
 from .evaluation import score_load, score_quality
 from .extractor import call_api_model
@@ -254,20 +255,12 @@ def main() -> int:
     if not os.environ.get("OPENAI_API_KEY_2"):
         parser.error("OPENAI_API_KEY_2가 필요합니다")
     settings = {
-        name: float(os.environ[name])
-        for name in (
-            "CONGESTION_RELEVANCE_EXCLUDE_BELOW",
-            "CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE",
-            "CONGESTION_DECISIONS_TIMEOUT_SECONDS",
-        )
+        "exclude_below": RELEVANCE_POLICY.exclude_below,
+        "related_at_or_above": RELEVANCE_POLICY.related_at_or_above,
+        "decisions_timeout_seconds": DECISIONS_TIMEOUT_SECONDS,
     }
-    policy = RelevancePolicy(
-        settings["CONGESTION_RELEVANCE_EXCLUDE_BELOW"],
-        settings["CONGESTION_RELEVANCE_RELATED_AT_OR_ABOVE"],
-    )
-    scorer = DecisionsRelevanceScorer(
-        timeout=settings["CONGESTION_DECISIONS_TIMEOUT_SECONDS"]
-    )
+    policy = RELEVANCE_POLICY
+    scorer = DecisionsRelevanceScorer(timeout=DECISIONS_TIMEOUT_SECONDS)
     load = json.loads((args.dataset / "load.json").read_text(encoding="utf-8"))
     selected = [case for case in load if case["signal_count"] in args.sizes]
     if args.mode == "load" and len(selected) != len(args.sizes):
