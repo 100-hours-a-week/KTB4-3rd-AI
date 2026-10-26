@@ -39,12 +39,12 @@ def judge_rows(candidates: list[str], rows: list[list[float]]) -> Decision:
     return Decision(status, candidates[winner])
 
 
-def choose(plain: str, field: str, candidates: list[str], device: str) -> Decision:
+async def choose(plain: str, field: str, candidates: list[str], device: str) -> Decision:
     if not candidates:
         return Decision("review", None)
     subject = f"{field}{topic(field)}"
     pairs = [(plain, f"{subject} {candidate}이다") for candidate in candidates]
-    return judge_rows(candidates, llm("slm", pairs, device=device))
+    return judge_rows(candidates, await llm("slm", pairs, device=device))
 # rows는 가설마다 [모순, 지지, 중립]이다.
 #
 # 미터기 002, field="표시된 운임", candidates=["3,000원", "1,988원", "114원", "852원"]

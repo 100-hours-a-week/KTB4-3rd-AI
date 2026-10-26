@@ -46,7 +46,9 @@ class SlmEngine:
             logger.exception("slm inference failed: pairs=%s max_chars=%s", len(pairs), max((len(p) for p, _ in pairs), default=0))
             raise InternalError() from exc
 
-    def load(self) -> None:
+    def load(self, place: str | None = None) -> None:
+        # place: 가중치를 처음 올릴 장치. Modal CPU 스냅샷은 cpu에 올린 뒤 to("cuda")로 옮긴다.
+        # dtype은 최종 장치(self.device) 기준이다. cuda면 cpu에 올려도 fp16이다.
         with self.lock:
             if self.model is not None:
                 return
@@ -63,7 +65,7 @@ class SlmEngine:
                 dtype = torch.float16 if self.device == "cuda" else torch.float32
                 model = AutoModelForSequenceClassification.from_pretrained(
                     REPO, subfolder=SUBFOLDER, dtype=dtype
-                ).to(self.device).eval()
+                ).to(place or self.device).eval()
                 text_config = model.config.get_text_config()
                 if text_config.pad_token_id is None:
                     text_config.pad_token_id = tokenizer.pad_token_id
@@ -73,3 +75,6 @@ class SlmEngine:
             self.tokenizer = tokenizer
             self.template = getattr(model.config, "nli_template", None) or TEMPLATE
             self.model = model
+
+    def to(self, device: str) -> None:
+        self.model.to(device)

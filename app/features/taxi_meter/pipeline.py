@@ -24,15 +24,15 @@ SCHEMA = {
 }
 
 
-def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
-    plain = llm("ocr", image=image, device=device)
+async def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
+    plain = await llm("ocr", image=image, device=device)
     candidates = amount_candidates(plain)
     if not candidates:
         logger.info("judge fallback: status=review")
         return None
     subject = f"{FIELD}{topic(FIELD)}"
     pairs = [(plain, f"{subject} {candidate}이다") for candidate in candidates]
-    decision = judge_rows(candidates, llm("slm", pairs, device=device))
+    decision = judge_rows(candidates, await llm("slm", pairs, device=device))
     if decision.status != "pass":
         logger.info("judge fallback: status=%s", decision.status)
         return None
@@ -46,8 +46,8 @@ def invalid(field: str, reason: str) -> JudgeParseError:
     return JudgeParseError()
 
 
-def model_api_run(image: ImageBytes) -> dict[str, int]:
-    raw = llm("api_1", PROMPT, image, schema=SCHEMA)
+async def model_api_run(image: ImageBytes) -> dict[str, int]:
+    raw = await llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
         value = json.loads(raw).get("cost")
     except (ValueError, AttributeError) as exc:

@@ -24,6 +24,8 @@ import httpx
 #   - INFO    judge fallback: pass가 아니라 luna로 넘길 때. 멈춘 필드와 status
 #   - WARNING model output is not valid: luna 응답으로 값을 확정하지 못했을 때. field, reason(not_json|unreadable|not_amount|transfer_not_done)
 # - main.py
+#   - WARNING request is invalid: 요청 필드 검증에 실패했을 때. path, fields
+#   - INFO    request done: 요청이 끝났을 때. path, status, code, ms
 #   - WARNING request failed: 4xx 오류 응답을 줄 때. path, status, code, hint
 #   - ERROR   request failed: 5xx 오류 응답을 줄 때. path, status, code, hint
 #   - ERROR   unhandled error: AppError가 아닌 예외. path, error. 스택은 로그에만 남긴다
@@ -42,8 +44,17 @@ import httpx
 #   - ERROR   ocr inference failed: 추론에 실패했을 때. bytes, type. 스택은 로그에만 남긴다
 # - llm/providers/modal_gpu.py
 #   - WARNING image model unavailable: modal이 설치되지 않음. model, missing
-#   - ERROR   modal lookup failed: 토큰이 틀렸거나 그 계정에 앱이 없을 때. reason, slot, hint
-#   - ERROR   modal call failed: method, reason(timeout|auth|not_found|remote_error), error, ms
+#   - ERROR   modal lookup failed: 토큰이 틀렸을 때. reason, slot, hint
+#   - INFO    modal deploy started / done: 버전 이름 앱이 없어 기동 때 자동 배포할 때. app, ms
+#   - ERROR   modal deploy failed: app, reason, hint
+#   - INFO    modal state changed: from, to (idle|deploying|ready|down)
+#   - ERROR   modal call failed: method, reason(timeout|auth|not_found|quota|permission|remote_error), error, ms
+# - inner_queue/scheduler.py
+#   - INFO    queue job routed: kind, route(api|gpu), api, gpu
+#   - INFO    queue job done: kind, route, waited_ms, ran_ms
+#   - WARNING queue job expired: 대기 상한을 넘겨 실행하지 않고 QUEUE_TIMEOUT을 줄 때. kind, route, waited_ms
+#   - INFO    queue job skipped: 기다리던 요청이 취소돼 실행하지 않을 때. kind, route, reason
+#   - ERROR   unhandled error: 실행 함수의 AppError가 아닌 예외. kind, route, error
 # - llm/providers/slm.py
 #   - WARNING image model unavailable: torch 또는 transformers가 설치되지 않음. model, missing
 #   - ERROR   slm model load failed: AlexWortega/openjev 4B 로드에 실패했을 때. device

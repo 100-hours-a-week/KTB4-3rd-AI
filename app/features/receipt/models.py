@@ -11,4 +11,4 @@ class ReceiptResponse(BaseModel):
     amount_cost: int
     transfer_info: str
     sender_name: str
-    send_time: str
+    send_time: str | None

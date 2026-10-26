@@ -1,5 +1,6 @@
 # luna 인터페이스. OpenAI Responses API에 이미지와 프롬프트를 보내고 JSON 문자열을 받는다.
 # schema를 주면 Structured Outputs(strict)로 키와 타입을 API가 강제한다. 없으면 JSON 문법만 강제한다.
+import asyncio
 import os
 import time
 from base64 import b64encode
@@ -45,7 +46,7 @@ class OpenAIEngine:
         self.key_name = f"OPENAI_API_KEY_{slot}"
         self.model = MODEL
 
-    def complete(self, image: ImageBytes | None, prompt: str, schema: dict | None = None) -> str:
+    async def complete(self, image: ImageBytes | None, prompt: str, schema: dict | None = None) -> str:
         key = os.environ.get(self.key_name)
         if not key and self.key_name == "OPENAI_API_KEY_1":
             # 키를 _1, _2로 나누기 전 이름. 배포 Secret을 아직 안 바꿨어도 이미지 기능은 돌게 한다.
@@ -66,7 +67,7 @@ class OpenAIEngine:
         }
         started = time.monotonic()
         try:
-            res = self.post(key, body)
+            res = await self.post(key, body)
             res.raise_for_status()
             output = res.json()["output"]
             text = "".join(
@@ -94,13 +95,14 @@ class OpenAIEngine:
             raise UpstreamError()
         return text
 
-    def post(self, key: str, body: dict) -> httpx.Response:
+    async def post(self, key: str, body: dict) -> httpx.Response:
         # ponytail: 429와 5xx만 1초 뒤 한 번 더 보내고, 두 번 합쳐 TIMEOUT 안에서 끝낸다. 429가 잦으면 Retry-After를 읽는다.
         deadline = time.monotonic() + TIMEOUT
-        for attempt in (1, 2):
-            res = httpx.post(URL, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=deadline - time.monotonic())
-            retryable = res.status_code == 429 or res.status_code >= 500
-            if attempt == 2 or not retryable or deadline - time.monotonic() - RETRY_WAIT < RETRY_MIN:
-                return res
-            logger.warning("openai request retry: status=%s error=%s", res.status_code, error_detail(res))
-            time.sleep(RETRY_WAIT)
+        async with httpx.AsyncClient() as client:
+            for attempt in (1, 2):
+                res = await client.post(URL, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=deadline - time.monotonic())
+                retryable = res.status_code == 429 or res.status_code >= 500
+                if attempt == 2 or not retryable or deadline - time.monotonic() - RETRY_WAIT < RETRY_MIN:
+                    return res
+                logger.warning("openai request retry: status=%s error=%s", res.status_code, error_detail(res))
+                await asyncio.sleep(RETRY_WAIT)

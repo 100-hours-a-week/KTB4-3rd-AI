@@ -1,4 +1,6 @@
 # send_time은 날짜와 시각 사이 공백만 보정하고 나머지는 적힌 그대로 둔다.
+import asyncio
+
 from app.core.oj_candidates import datetime_value
 
 
@@ -13,3 +15,18 @@ def test_datetime_value():
     }
     for raw, expected in cases.items():
         assert datetime_value(raw) == expected, raw
+
+
+def test_send_time_null(monkeypatch):
+    from app.features.receipt import pipeline
+    from app.features.receipt.models import ReceiptResponse
+
+    raw = '{"amount_cost": 6700, "transfer_info": "이체가 완료되었습니다.", "sender_name": "김홍엽", "send_time": null}'
+
+    async def llm(*a, **k):
+        return raw
+
+    monkeypatch.setattr(pipeline, "llm", llm)
+    out = asyncio.run(pipeline.model_api_run(None))
+    assert out == {"amount_cost": 6700, "transfer_info": "이체가 완료되었습니다.", "sender_name": "김홍엽", "send_time": None}
+    assert ReceiptResponse(**out).send_time is None

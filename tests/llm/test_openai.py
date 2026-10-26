@@ -1,9 +1,24 @@
 # luna 요청 본문과 재시도 규칙만 본다. 네트워크는 쓰지 않는다.
+import asyncio
+import types
+
 import httpx
 
 from app.llm.providers import openai
 
 OK = {"output": [{"type": "message", "content": [{"type": "output_text", "text": '{"cost": 3000}'}]}]}
+
+
+def patch_post(monkeypatch, post):
+    # httpx.AsyncClient.post를 바꿔치기한다. post(url, headers, json, timeout) -> httpx.Response
+    async def fake(self, url, headers, json, timeout):
+        return post(url, headers, json, timeout)
+
+    monkeypatch.setattr(openai.httpx.AsyncClient, "post", fake)
+
+
+def complete(slot, schema=None):
+    return asyncio.run(openai.OpenAIEngine(slot).complete(None, "p", schema))
 
 
 def fake_post(statuses, bodies):
@@ -17,10 +32,10 @@ def fake_post(statuses, bodies):
 def run(monkeypatch, statuses, schema=None):
     bodies = []
     monkeypatch.setenv("OPENAI_API_KEY_1", "k")
-    monkeypatch.setattr(openai.httpx, "post", fake_post(statuses, bodies))
+    patch_post(monkeypatch, fake_post(statuses, bodies))
     monkeypatch.setattr(openai, "RETRY_WAIT", 0)
     try:
-        return openai.OpenAIEngine("1").complete(None, "p", schema), bodies
+        return complete("1", schema), bodies
     except Exception as exc:
         return exc, bodies
 
@@ -48,10 +63,11 @@ def test_retry_stays_within_timeout(monkeypatch):
             clock[0] += spent
             return httpx.Response(503, json={}, request=httpx.Request("POST", url))
 
-        monkeypatch.setattr(openai.time, "monotonic", lambda: clock[0])
-        monkeypatch.setattr(openai.httpx, "post", post)
+        # 이벤트 루프 시계는 건드리지 않도록 openai 모듈의 time만 바꾼다.
+        monkeypatch.setattr(openai, "time", types.SimpleNamespace(monotonic=lambda: clock[0]))
+        patch_post(monkeypatch, post)
         try:
-            openai.OpenAIEngine("1").complete(None, "p")
+            complete("1")
         except Exception:
             pass
         return timeouts
@@ -60,6 +76,25 @@ def test_retry_stays_within_timeout(monkeypatch):
     monkeypatch.setattr(openai, "RETRY_WAIT", 0)
     assert calls(40) == [45]  # 남은 5초 < RETRY_MIN이라 재시도하지 않는다
     assert calls(20) == [45, 25]  # 재시도는 남은 시간만 기다린다
+
+
+def test_retry_waits_without_blocking_loop(monkeypatch):
+    # 재시도 대기는 asyncio.sleep이다. 그동안 다른 task가 돈다.
+    monkeypatch.setenv("OPENAI_API_KEY_1", "k")
+    monkeypatch.setattr(openai, "RETRY_WAIT", 0.05)
+    patch_post(monkeypatch, fake_post([503, 200], []))
+    ticks = []
+
+    async def main():
+        async def tick():
+            for _ in range(3):
+                ticks.append(1)
+                await asyncio.sleep(0.01)
+
+        text, _ = await asyncio.gather(openai.OpenAIEngine("1").complete(None, "p"), tick())
+        return text
+
+    assert asyncio.run(main()) == '{"cost": 3000}' and len(ticks) == 3
 
 
 def test_schema_switches_format(monkeypatch):
@@ -75,11 +110,11 @@ def test_legacy_key_only_for_slot_1(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "old")
     seen = []
-    monkeypatch.setattr(openai.httpx, "post", lambda url, headers, json, timeout: seen.append(headers) or httpx.Response(200, json=OK, request=httpx.Request("POST", url)))
-    assert openai.OpenAIEngine("1").complete(None, "p") == '{"cost": 3000}'
+    patch_post(monkeypatch, lambda url, headers, json, timeout: seen.append(headers) or httpx.Response(200, json=OK, request=httpx.Request("POST", url)))
+    assert complete("1") == '{"cost": 3000}'
     assert seen[0]["Authorization"] == "Bearer old"
     try:
-        openai.OpenAIEngine("2").complete(None, "p")
+        complete("2")
     except Exception as exc:
         assert getattr(exc, "code", None) == "MODEL_NOT_READY"
     else:
@@ -91,11 +126,11 @@ def test_failure_log_has_reason_and_hint(monkeypatch, caplog):
 
     body = {"error": {"type": "invalid_request_error", "code": "invalid_api_key", "message": "secret text"}}
     monkeypatch.setenv("OPENAI_API_KEY_1", "k")
-    monkeypatch.setattr(openai.httpx, "post", lambda url, headers, json, timeout: httpx.Response(
+    patch_post(monkeypatch, lambda url, headers, json, timeout: httpx.Response(
         401, json=body, headers={"x-request-id": "req_9"}, request=httpx.Request("POST", url)))
     with caplog.at_level(logging.INFO, logger="app"):
         try:
-            openai.OpenAIEngine("1").complete(None, "p")
+            complete("1")
         except Exception:
             pass
     line = [r.getMessage() for r in caplog.records if r.getMessage().startswith("openai request failed")][0]
