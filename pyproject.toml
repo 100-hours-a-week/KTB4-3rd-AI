@@ -18,6 +18,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+monitor = [
+    "langgraph>=1.2",
+    "langchain-openai>=1.7",
+    "pymysql>=1.1",
+    "DBUtils>=3.1",
+    "boto3>=1.35",
+    "mcp>=1.0",
+]
 # 이 서버에서 OCR과 openjev를 돌릴 때(LOCAL_DEVICE=TRUE). GPU 서버는 paddlepaddle-gpu로 바꾼다.
 local = [
     "paddleocr>=3.7",

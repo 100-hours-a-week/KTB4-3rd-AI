@@ -107,6 +107,7 @@ async def request_context(request, call_next):
     given = request.headers.get("x-request-id", "")
     rid = given if SAFE_ID.match(given) else uuid4().hex[:12]
     token = request_id.set(rid)
+    request.state.request_id = rid
     try:
         response = await call_next(request)
     finally:

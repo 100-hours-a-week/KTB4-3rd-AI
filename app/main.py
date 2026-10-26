@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from . import Server_Monitor_Bot as monitor
 from .api.router import router
 from .core.config import DEVICE, LOCAL_DEVICES
 from .core.exceptions import HINTS, AppError, InternalError, RequestInvalid
@@ -30,6 +31,7 @@ def preload(device: str) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    monitor.start(app)
     # 요청은 모두 내부 큐(전체 30 / API 20 / GPU 10)를 거친다. 연결은 여기서만 한다.
     scheduler = Scheduler({
         "taxi_meter": (taxi_meter.run_api, taxi_meter.run_gpu),
@@ -48,6 +50,7 @@ async def lifespan(app: FastAPI):
     await scheduler.stop(50)  # --timeout-graceful-shutdown 50과 맞춘다
     if prepare is not None:
         prepare.cancel()
+    monitor.stop()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -100,5 +103,6 @@ async def request_invalid(request, exc: RequestValidationError) -> JSONResponse:
 
 @app.exception_handler(Exception)
 async def unhandled(request, exc: Exception) -> JSONResponse:
-    logger.exception("unhandled error: path=%s error=%s", request.url.path, type(exc).__name__)
+    logger.exception("unhandled error: path=%s error=%s", request.url.path, type(exc).__name__,
+                     extra={"request_id": getattr(request.state, "request_id", None)})
     return error(request, InternalError())

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ...Server_Monitor_Bot.hooks import flag
 from ...core.exceptions import ModelNotReady, UpstreamError
 from ...core.logging import get_logger, log_import_error
 from ..types import ImageBytes
@@ -102,7 +103,7 @@ class ModalEngine:
         try:
             call = await self.remote.pipe.spawn.aio(kind, image.content, image.media_type)
             # WAIT를 넘기면 luna로 넘어가고, 원격 호출은 계속 돌아 컨테이너를 데운다.
-            return await call.get.aio(timeout=WAIT)
+            return await call.get.aio(timeout=flag("modal.wait_s", WAIT))
         except Exception as exc:
             name = type(exc).__name__
             reason = "timeout" if "Timeout" in name else REASONS.get(name, "remote_error")

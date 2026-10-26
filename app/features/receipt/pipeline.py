@@ -3,6 +3,7 @@
 import json
 import re
 
+from ...Server_Monitor_Bot.hooks import drill_point
 from ...core.exceptions import JudgeParseError
 from ...core.logging import get_logger
 from ...core.oj_candidates import (
@@ -79,7 +80,8 @@ def invalid(field: str, reason: str) -> JudgeParseError:
 
 
 async def model_api_run(image: ImageBytes) -> dict[str, int | str | None]:
-    raw = await llm("api_1", PROMPT, image, schema=SCHEMA)
+    fake = drill_point("luna_parse")
+    raw = fake.get("raw", "{}") if fake else await llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
         payload = json.loads(raw)
         if not isinstance(payload, dict):

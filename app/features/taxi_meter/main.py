@@ -1,5 +1,6 @@
 # 미터기 요청 실행 함수(run_api, run_gpu) 정의
 # 배분은 inner_queue가 정한다. 여기서는 경로별 실행만 한다.
+from ...Server_Monitor_Bot.hooks import flag
 from ...core.config import DEVICE
 from ...core.exceptions import InternalError, ModelNotReady, UpstreamError
 from ...core.logging import get_logger
@@ -20,6 +21,8 @@ async def run_gpu(image_url: str) -> dict[str, int]:
     image = await load_image(image_url)
     if DEVICE == "off":
         return await luna(image, "device_off")
+    if flag("route.force_luna"):
+        return await luna(image, "force_luna")
     try:
         result = await (pipe(KIND, image) if DEVICE == "modal" else model_pipe_run(image, DEVICE))
     except ModelNotReady:

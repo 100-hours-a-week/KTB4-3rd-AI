@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import httpx
 from PIL import Image
 
+from ...Server_Monitor_Bot.hooks import drill_point
 from ...core.exceptions import ImageFetchError, ImageSizeError, ImageTypeError
 from ...core.logging import get_logger, http_reason
 from ...llm import ImageBytes
@@ -40,6 +41,10 @@ async def download(image_url: str, host: str) -> bytes:
                     chunks.append(chunk)
         return b"".join(chunks)
 
+    fake = drill_point("image_fetch")
+    if fake:
+        req = httpx.Request("GET", image_url)
+        raise httpx.HTTPStatusError("drill", request=req, response=httpx.Response(int(fake.get("status", 403)), request=req))
     try:
         return await asyncio.wait_for(fetch(), TIMEOUT)
     except asyncio.TimeoutError as exc:

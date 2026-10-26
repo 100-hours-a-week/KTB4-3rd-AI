@@ -2,6 +2,7 @@
 # model_pipe_run은 OCR과 openjev로 요금을 고르고, model_api_run은 luna API로 요금을 읽는다.
 import json
 
+from ...Server_Monitor_Bot.hooks import drill_point
 from ...core.exceptions import JudgeParseError
 from ...core.logging import get_logger
 from ...core.oj_candidates import amount_candidates, amount_value
@@ -47,7 +48,8 @@ def invalid(field: str, reason: str) -> JudgeParseError:
 
 
 async def model_api_run(image: ImageBytes) -> dict[str, int]:
-    raw = await llm("api_1", PROMPT, image, schema=SCHEMA)
+    fake = drill_point("luna_parse")
+    raw = fake.get("raw", "{}") if fake else await llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
         value = json.loads(raw).get("cost")
     except (ValueError, AttributeError) as exc:

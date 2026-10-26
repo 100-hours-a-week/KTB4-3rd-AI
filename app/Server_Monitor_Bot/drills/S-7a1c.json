@@ -1,0 +1,4 @@
+{"id": "S-7a1c", "group": "A", "feature": "receipt", "image_url": "",
+ "inject": {"point": "luna_call", "behavior": {"status": 429, "error_code": "rate_limit_exceeded"}},
+ "expected": {"step_id": "luna_call", "reason": "http_4xx", "cause_text": "OpenAI 분당 요청 한도 초과(429 rate_limit_exceeded)"},
+ "hide_knowledge": []}

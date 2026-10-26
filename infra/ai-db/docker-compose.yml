@@ -1,0 +1,38 @@
+# AI DB EC2(MySQL 8.4 + Qdrant). 사설 IP에만 바인딩한다. 로컬은 PRIVATE_IP=127.0.0.1로 같은 파일을 쓴다.
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      AI_STAGES: ${AI_STAGES:-dev prod}
+      AI_DB_PASSWORDS: ${AI_DB_PASSWORDS}
+      AI_DB_HOST: ${AI_DB_HOST:-%}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --max-connections=50
+      - --innodb-buffer-pool-size=384M
+      - --ngram-token-size=2
+      - --require-secure-transport=ON
+    ports:
+      - "${PRIVATE_IP}:3306:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - ../../app/Server_Monitor_Bot/store/schema.sql:/schema/V001__init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+    mem_limit: 900m
+
+  qdrant:
+    image: qdrant/qdrant:${QDRANT_TAG}
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    ports:
+      - "${PRIVATE_IP}:6333:6333"
+    volumes:
+      - ./qdrant_data:/qdrant/storage
+    mem_limit: 700m

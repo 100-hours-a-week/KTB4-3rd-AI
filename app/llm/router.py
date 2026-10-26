@@ -10,11 +10,13 @@
 # 기능 폴더가 이를 받아 luna로 넘기므로 실패 비용을 요청마다 다시 치르지 않는다.
 import asyncio
 import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
-from ..core.exceptions import InternalError, ModelNotReady
-from ..core.logging import get_logger
+from ..Server_Monitor_Bot.hooks import last_call, record_llm_call
+from ..core.exceptions import AppError, InternalError, ModelNotReady
+from ..core.logging import get_logger, request_id
 from .providers.modal_gpu import ModalEngine
 from .providers.ocr import OcrEngine
 from .providers.openai import OpenAIEngine
@@ -75,7 +77,17 @@ async def llm(
     schema: dict | None = None,
 ) -> str | list[list[float]]:
     if name in ("api_1", "api_2"):
-        return await engine(name, device).complete(image, prompt, schema)
+        model = engine(name, device)
+        last_call.set(None)
+        started, result, reason = time.monotonic(), "ok", None
+        try:
+            return await model.complete(image, prompt, schema)
+        except BaseException as exc:
+            result, reason = "fail", exc.code.lower() if isinstance(exc, AppError) else type(exc).__name__.lower()
+            raise
+        finally:
+            record_llm_call(request_id=request_id.get(), name=name, device=device, model=getattr(model, "model", None), prompt=prompt,
+                            ms=int((time.monotonic() - started) * 1000), result=result, reason=reason)
 
     def call() -> str | list[list[float]]:
         model = engine(name, device)
