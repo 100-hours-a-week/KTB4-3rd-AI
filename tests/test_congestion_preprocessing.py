@@ -1,4 +1,4 @@
-"""스팟 단위 전처리의 시간 경계와 분류 후보·부모 문맥 보존을 검증한다."""
+"""스팟 단위 전처리의 분류 후보·부모 문맥 보존을 검증한다."""
 
 from datetime import datetime, timedelta
 
@@ -18,6 +18,7 @@ def spot() -> CongestionSpotInput:
             "post_bundles": [
                 {
                     "post_id": 1,
+                    "context_only": True,
                     "title": "오래된 원글",
                     "content": "이곳 현장 상황을 알려주세요.",
                     "author_key": "parent",
@@ -51,6 +52,7 @@ def spot() -> CongestionSpotInput:
                 },
                 {
                     "post_id": 2,
+                    "context_only": False,
                     "title": "만료된 묶음",
                     "content": "60분 창의 시작 경계에 작성한 원글",
                     "author_key": "expired",
@@ -59,6 +61,7 @@ def spot() -> CongestionSpotInput:
                 },
                 {
                     "post_id": 3,
+                    "context_only": False,
                     "title": "최근 현장 제보",
                     "content": "지금은 한산해요.",
                     "author_key": "repeat",
@@ -67,6 +70,7 @@ def spot() -> CongestionSpotInput:
                 },
                 {
                     "post_id": 4,
+                    "context_only": False,
                     "title": "비출퇴근 창의 제보",
                     "content": "지금 줄이 길어요.",
                     "author_key": "off-peak",
@@ -75,6 +79,7 @@ def spot() -> CongestionSpotInput:
                 },
                 {
                     "post_id": 5,
+                    "context_only": False,
                     "title": "일반 글",
                     "content": "오늘 점심 메뉴 추천해주세요.",
                     "author_key": "unclassified",
@@ -86,35 +91,10 @@ def spot() -> CongestionSpotInput:
     )
 
 
-@pytest.mark.parametrize(
-    ("minutes", "expected_keys", "expected_context_ids"),
-    [
-        (10, [("comment", 2), ("comment", 3), ("post", 3), ("post", 5)], [1, 3, 5]),
-        (
-            60,
-            [("comment", 1), ("comment", 2), ("comment", 3), ("post", 3), ("post", 4), ("post", 5)],
-            [1, 3, 4, 5],
-        ),
-    ],
-)
-def test_spot_candidates_use_requested_window_and_keep_input_order(
-    spot: CongestionSpotInput,
-    minutes: int,
-    expected_keys: list[tuple[str, int]],
-    expected_context_ids: list[int],
-) -> None:
-    prepared = preprocessor.prepare_spot(spot, AS_OF, timedelta(minutes=minutes))
-
-    assert [(candidate.signal_type, candidate.signal_id) for candidate in prepared.candidates] == (
-        expected_keys
-    )
-    assert [post.post_id for post in prepared.post_bundles] == expected_context_ids
-
-
 def test_comment_candidate_keeps_parent_and_original_metadata(spot: CongestionSpotInput) -> None:
     original = spot.model_dump()
-    prepared = preprocessor.prepare_spot(spot, AS_OF, timedelta(minutes=10))
-    comment = prepared.candidates[0]
+    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    comment = prepared.candidates[1]
 
     assert (comment.signal_type, comment.signal_id, comment.post_id) == ("comment", 2, 1)
     assert comment.title is None
@@ -129,48 +109,56 @@ def test_comment_candidate_keeps_parent_and_original_metadata(spot: CongestionSp
 def test_post_and_comment_with_same_numeric_id_remain_separate_candidates(
     spot: CongestionSpotInput,
 ) -> None:
-    prepared = preprocessor.prepare_spot(spot, AS_OF, timedelta(minutes=10))
+    prepared = preprocessor.prepare_spot(spot, AS_OF)
 
     assert [
         candidate.signal_type for candidate in prepared.candidates if candidate.signal_id == 3
     ] == ["comment", "post"]
-    assert prepared.candidates[2].title == "최근 현장 제보"
+    assert [(item.signal_type, item.signal_id) for item in prepared.candidates] == [
+        ("comment", 1), ("comment", 2), ("comment", 3), ("comment", 4),
+        ("post", 2), ("post", 3), ("post", 4), ("post", 5),
+    ]
 
 
 def test_repeated_authors_are_kept_for_individual_judgment(spot: CongestionSpotInput) -> None:
-    prepared = preprocessor.prepare_spot(spot, AS_OF, timedelta(minutes=10))
+    prepared = preprocessor.prepare_spot(spot, AS_OF)
 
     assert [
         candidate.signal_id for candidate in prepared.candidates if candidate.author_key == "repeat"
     ] == [2, 3]
 
 
-@pytest.mark.parametrize("only_expired", [False, True])
-def test_spot_without_current_signals_has_no_candidates_or_context(
-    spot: CongestionSpotInput, only_expired: bool
+@pytest.mark.parametrize("context_only", [False, True])
+def test_spot_without_candidates_has_no_context(
+    spot: CongestionSpotInput, context_only: bool
 ) -> None:
     empty = CongestionSpotInput(
-        spot_id=7, post_bundles=[spot.post_bundles[1]] if only_expired else []
+        spot_id=7,
+        post_bundles=[spot.post_bundles[1].model_copy(update={"context_only": True})]
+        if context_only
+        else [],
     )
-    prepared = preprocessor.prepare_spot(empty, AS_OF, timedelta(minutes=60))
+    prepared = preprocessor.prepare_spot(empty, AS_OF)
 
     assert prepared.candidates == ()
     assert prepared.post_bundles == ()
 
 
-def test_equivalent_timezone_offsets_select_the_same_signals(spot: CongestionSpotInput) -> None:
-    as_of_utc = datetime.fromisoformat("2026-10-12T03:00:00+00:00")
-    prepared = preprocessor.prepare_spot(spot, as_of_utc, timedelta(minutes=10))
-
-    assert [(candidate.signal_type, candidate.signal_id) for candidate in prepared.candidates] == [
-        ("comment", 2),
-        ("comment", 3),
-        ("post", 3),
-        ("post", 5),
+def test_context_only_post_is_context_but_its_comments_are_candidates(
+    spot: CongestionSpotInput,
+) -> None:
+    spot.post_bundles = [spot.post_bundles[0]]
+    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    assert [(item.signal_type, item.signal_id) for item in prepared.candidates] == [
+        ("comment", 1), ("comment", 2), ("comment", 3), ("comment", 4),
     ]
+    assert prepared.post_bundles == tuple(spot.post_bundles)
 
 
-@pytest.mark.parametrize("minutes", [0, -1])
-def test_nonpositive_window_is_rejected(spot: CongestionSpotInput, minutes: int) -> None:
-    with pytest.raises(ValueError, match="window"):
-        preprocessor.prepare_spot(spot, AS_OF, timedelta(minutes=minutes))
+def test_very_old_comment_is_still_a_candidate(spot: CongestionSpotInput) -> None:
+    spot.post_bundles[0].comments[0].created_at = AS_OF - timedelta(days=365)
+    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    assert any(
+        item.signal_type == "comment" and item.signal_id == 1
+        for item in prepared.candidates
+    )

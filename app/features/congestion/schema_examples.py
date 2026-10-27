@@ -12,6 +12,7 @@ REQUEST_EXAMPLE: dict[str, JsonValue] = {
             "post_bundles": [
                 {
                     "post_id": 20481,
+                    "context_only": False,
                     "title": "지금 잠실역 행사 인파 많아요",
                     "content": "지금 잠실역에 있는데 행사 때문에 사람이 너무 많아서 못 움직여요.",
                     "author_key": "member_4821",
@@ -33,6 +34,7 @@ REQUEST_EXAMPLE: dict[str, JsonValue] = {
                 },
                 {
                     "post_id": 20486,
+                    "context_only": False,
                     "title": "잠실역 아직도 이동하기 힘들어요",
                     "content": "아직 잠실역에 있어요. 행사 인파 때문에 지금도 이동하기 힘들어요.",
                     "author_key": "member_4821",

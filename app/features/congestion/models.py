@@ -92,6 +92,7 @@ class CongestionCommentInput(ApiModel):
 
 
 class CongestionPostBundleInput(ApiModel):
+    context_only: bool = Field(strict=True)
     post_id: PositiveId
     title: TitleText
     content: PostText

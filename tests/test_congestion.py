@@ -48,6 +48,7 @@ def payload() -> dict[str, Any]:
                 "post_bundles": [
                     {
                         "post_id": 10,
+                        "context_only": False,
                         "title": "현재 상황",
                         "content": "사람이 많아요.",
                         "author_key": "author-1",
@@ -124,6 +125,7 @@ FIELDS = [
     ("request", "spots"),
     ("spot", "spot_id"),
     ("spot", "post_bundles"),
+    ("post", "context_only"),
     ("post", "post_id"),
     ("post", "title"),
     ("post", "content"),
@@ -529,3 +531,9 @@ def test_malformed_json_uses_common_request_error() -> None:
     )
     assert response.status_code == 422
     assert response.json() == INVALID
+
+
+@pytest.mark.parametrize("value", [0, 1, "false", "true"])
+def test_context_only_requires_boolean(payload: dict[str, Any], value: object) -> None:
+    node(payload, "post")["context_only"] = value
+    assert_invalid(payload)

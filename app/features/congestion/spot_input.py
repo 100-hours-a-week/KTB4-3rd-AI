@@ -18,7 +18,7 @@ class SpotLLMInput:
 def build_spot_input(classified: ClassifiedSpot) -> SpotLLMInput | None:
     """선택된 대상이 있는 묶음의 전체 문맥을 스팟 입력 하나로 직렬화한다.
 
-    targets만 판정 대상이다. 오래되거나 무관한 원글·댓글은 선택된 묶음 안에서 문맥으로
+    targets만 판정 대상이다. 문맥용 원글이나 무관한 원글·댓글은 선택된 묶음 안에서 문맥으로
     남기며, 그 자체를 판정·집계 대상으로 승격하지 않는다. 대상이 없으면 입력도 없다.
     """
     targets = classified.selected_candidates
@@ -30,7 +30,6 @@ def build_spot_input(classified: ClassifiedSpot) -> SpotLLMInput | None:
     payload = {
         "spot_id": prepared.spot_id,
         "as_of": prepared.as_of.isoformat(),
-        "window_start": (prepared.as_of - prepared.window).isoformat(),
         "targets": [
             {"signal_type": target.signal_type, "signal_id": target.signal_id}
             for target in targets

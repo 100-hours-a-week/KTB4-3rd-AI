@@ -62,7 +62,7 @@ class FakeCongestionAnalyzer:
 
 
 class LLMCongestionAnalyzer:
-    """명시 창으로 선별·분류한 스팟을 한 번 추출하고 코드로 집계한다."""
+    """후보를 선별·분류한 스팟을 한 번 추출하고 코드로 집계한다."""
 
     def __init__(
         self,
@@ -80,16 +80,16 @@ class LLMCongestionAnalyzer:
     def analyze(
         self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
     ) -> CongestionResult:
-        prepared = prepare_spot(spot, as_of, window)
+        prepared = prepare_spot(spot, as_of)
         if not prepared.candidates:
-            return aggregate_signals([], as_of, window=window)
+            return aggregate_signals([])
         try:
             score, policy = self._configured_scorer()
             classified = classify_spot(prepared, score, policy)
             assessed = assess_spot(build_spot_input(classified), self._complete)
         except (ModelNotReady, UpstreamError, ModelOutputInvalid, RelevanceOutputInvalid) as exc:
             raise AnalysisError("congestion analysis failed") from exc
-        return aggregate_signals(assessed.signals, as_of, window=window)
+        return aggregate_signals(assessed.signals)
 
     def _configured_scorer(self) -> tuple[RelevanceScorer, RelevancePolicy]:
         if self._score is not None and self._policy is not None:

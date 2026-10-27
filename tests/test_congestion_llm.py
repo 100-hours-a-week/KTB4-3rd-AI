@@ -41,6 +41,7 @@ def request_data() -> dict[str, Any]:
                 "post_bundles": [
                     {
                         "post_id": 10,
+                        "context_only": False,
                         "title": "오래된 원글",
                         "content": "어제는 한산했어요.",
                         "author_key": "old-author",
@@ -224,14 +225,17 @@ def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
         request.spots[0], request.as_of, timedelta(minutes=request.window_minutes)
     )
     assert len(called) == 1
-    assert [bundle["post_id"] for bundle in called[0]["post_bundles"]] == [10, 12]
+    assert [bundle["post_id"] for bundle in called[0]["post_bundles"]] == [10, 11, 12]
     assert called[0]["targets"] == [
+        {"signal_type": "post", "signal_id": 10},
         {"signal_type": "comment", "signal_id": 20},
+        {"signal_type": "comment", "signal_id": 21},
+        {"signal_type": "post", "signal_id": 11},
         {"signal_type": "post", "signal_id": 12},
     ]
-    assert result.congestion_level == "HIGH"
-    assert result.report_count == 1
-    assert [(cause.cause_code, cause.report_count) for cause in result.causes] == [("EVENT", 1)]
+    assert result.congestion_level == "MEDIUM"
+    assert result.report_count == 3
+    assert [(cause.cause_code, cause.report_count) for cause in result.causes] == [("EVENT", 3)]
 
 
 @pytest.fixture
@@ -240,14 +244,15 @@ def use_mock_llm() -> Iterator[list[str]]:
 
     def complete(prompt: str) -> str:
         calls.append(prompt)
+        payload = json.loads(prompt.split("입력 JSON:\n", 1)[1])
         return decision(
             [
                 {
-                    "signal_type": "comment",
-                    "signal_id": 20,
-                    "congestion_level": "MEDIUM",
-                    "causes": ["EVENT"],
+                    **target,
+                    "congestion_level": "MEDIUM" if target["signal_id"] == 20 else None,
+                    "causes": ["EVENT"] if target["signal_id"] == 20 else [],
                 }
+                for target in payload["targets"]
             ]
         )
 
@@ -349,11 +354,11 @@ def test_failed_spot_does_not_retry_but_next_spot_continues() -> None:
         return decision(
             [
                 {
-                    "signal_type": "comment",
-                    "signal_id": 22,
-                    "congestion_level": "MEDIUM",
+                    **target,
+                    "congestion_level": "MEDIUM" if target["signal_id"] == 22 else None,
                     "causes": [],
                 }
+                for target in payload["targets"]
             ]
         )
 

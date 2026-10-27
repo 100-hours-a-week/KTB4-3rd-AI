@@ -3,11 +3,10 @@
 from collections import Counter
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Generic, Literal, Protocol, TypeVar, cast
 
 from .models import CauseCode, CongestionCause, CongestionLevel, CongestionResult
-from .preprocessor import WINDOW, is_in_window
 
 Stage = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -112,23 +111,13 @@ def _causes_of(signal: JudgedSignal) -> frozenset[CauseCode] | None:
     return signal.causes
 
 
-def aggregate_signals(
-    signals: Iterable[JudgedSignal], as_of: datetime, *, window: timedelta = WINDOW
-) -> CongestionResult:
-    return aggregate_with_trace(signals, as_of, window=window).result
+def aggregate_signals(signals: Iterable[JudgedSignal]) -> CongestionResult:
+    return aggregate_with_trace(signals).result
 
 
-def aggregate_with_trace(
-    signals: Iterable[JudgedSignal], as_of: datetime, *, window: timedelta = WINDOW
-) -> AggregationTrace:
+def aggregate_with_trace(signals: Iterable[JudgedSignal]) -> AggregationTrace:
     """HTTP와 진단에 같은 선택·집계를 적용하고 입력의 원래 인덱스를 보존한다."""
-    if window <= timedelta(0):
-        raise ValueError("window must be positive")
-    current = [
-        (index, signal)
-        for index, signal in enumerate(signals)
-        if is_in_window(signal.created_at, as_of, window)
-    ]
+    current = list(enumerate(signals))
     for _, signal in current:
         level_value: object = signal.congestion_level
         if level_value == "UNKNOWN" or "UNKNOWN" in signal.causes:

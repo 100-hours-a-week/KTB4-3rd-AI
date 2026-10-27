@@ -1,7 +1,7 @@
 """Decisions HTTP 계약과 응답 검증을 모의 전송 계층에서 확인한다."""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -26,6 +26,7 @@ def prepared() -> PreparedSpot:
             "post_bundles": [
                 {
                     "post_id": 1,
+                    "context_only": True,
                     "title": "오래된 부모",
                     "content": "여기 줄이 길어요.",
                     "author_key": "parent",
@@ -53,6 +54,7 @@ def prepared() -> PreparedSpot:
                 },
                 {
                     "post_id": 3,
+                    "context_only": False,
                     "title": "일반 글",
                     "content": "점심 뭐 먹을까요?",
                     "author_key": "third",
@@ -62,12 +64,10 @@ def prepared() -> PreparedSpot:
             ],
         }
     )
-    return prepare_spot(
-        spot, datetime.fromisoformat("2026-10-12T12:00:00+09:00"), timedelta(minutes=10)
-    )
+    return prepare_spot(spot, datetime.fromisoformat("2026-10-12T12:00:00+09:00"))
 
 
-def test_bundle_requests_classify_each_current_signal_and_keep_parent_context(
+def test_bundle_requests_classify_all_candidates_and_keep_parent_context(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -78,7 +78,7 @@ def test_bundle_requests_classify_each_current_signal_and_keep_parent_context(
         assert request.headers["Authorization"] == "Bearer test-key"
         payload = json.loads(request.content)
         received.append(payload)
-        scores = {"comment_1": 0.9, "comment_3": 0.5, "post_3": 0.01}
+        scores = {"comment_1": 0.9, "comment_2": 0.0, "comment_3": 0.5, "post_3": 0.01}
         return httpx.Response(
             200,
             json={
@@ -95,13 +95,13 @@ def test_bundle_requests_classify_each_current_signal_and_keep_parent_context(
     result = classify_spot(
         prepared, scorer, RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8)
     )
-    assert [item.probability for item in result.decisions] == [0.9, 0.5, 0.01]
+    assert [item.probability for item in result.decisions] == [0.9, 0.0, 0.5, 0.01]
     assert [(item.signal_type, item.signal_id) for item in result.selected_candidates] == [
         ("comment", 1),
         ("comment", 3),
     ]
     assert [[item["name"] for item in payload["questions"]] for payload in received] == [
-        ["comment_1", "comment_3"],
+        ["comment_1", "comment_2", "comment_3"],
         ["post_3"],
     ]
     assert all(payload["model"] == "gpt-6-luna" for payload in received)
@@ -229,7 +229,6 @@ def test_empty_spot_needs_no_key_or_network(monkeypatch: pytest.MonkeyPatch) -> 
     prepared = prepare_spot(
         CongestionSpotInput(spot_id=1, post_bundles=[]),
         datetime.fromisoformat("2026-10-12T12:00:00+09:00"),
-        timedelta(minutes=10),
     )
 
     def unexpected(_request: httpx.Request) -> httpx.Response:

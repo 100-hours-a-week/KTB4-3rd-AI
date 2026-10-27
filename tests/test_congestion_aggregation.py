@@ -1,4 +1,4 @@
-"""이미 판정된 제보의 시간 선별과 스팟 집계 규칙."""
+"""이미 판정된 신호의 스팟 집계와 기존 묶음 선정 규칙."""
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -33,7 +33,7 @@ class Judgment:
 def aggregate(*signals: Judgment) -> dict[str, object]:
     aggregate_signals = getattr(aggregator, "aggregate_signals", None)
     assert callable(aggregate_signals), "the aggregation function is missing"
-    return aggregate_signals(signals, AS_OF).model_dump()
+    return aggregate_signals(signals).model_dump()
 
 
 def select(spot: CongestionSpotInput) -> list[CongestionPostBundleInput]:
@@ -48,6 +48,7 @@ def bundle(
     return CongestionPostBundleInput.model_validate(
         {
             "post_id": post_id,
+            "context_only": False,
             "title": "현장 상황",
             "content": "게시글",
             "author_key": f"author-{post_id}",
@@ -63,37 +64,6 @@ def bundle(
             ],
         }
     )
-
-
-def test_window_has_open_lower_and_closed_upper_boundary() -> None:
-    assert aggregate(
-        Judgment("too-old", CUTOFF, "HIGH"),
-        Judgment("inside", CUTOFF + timedelta(seconds=1), "MEDIUM"),
-        Judgment("at-as-of", AS_OF, "MEDIUM"),
-    ) == {
-        "congestion_level": "MEDIUM",
-        "report_count": 2,
-        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
-    }
-
-
-@pytest.mark.parametrize(
-    ("minutes", "expected_count"), [(10, 0), (60, 1)]
-)
-def test_explicit_window_controls_aggregation(minutes: int, expected_count: int) -> None:
-    result = aggregator.aggregate_signals(
-        [Judgment("off-peak", AS_OF - timedelta(minutes=45), "MEDIUM")],
-        AS_OF,
-        window=timedelta(minutes=minutes),
-    )
-    assert result.report_count == expected_count
-    assert result.congestion_level == ("MEDIUM" if expected_count else "UNKNOWN")
-
-
-@pytest.mark.parametrize("minutes", [0, -1])
-def test_aggregation_rejects_nonpositive_window(minutes: int) -> None:
-    with pytest.raises(ValueError, match="window"):
-        aggregator.aggregate_signals([], AS_OF, window=timedelta(minutes=minutes))
 
 
 @pytest.mark.parametrize(
@@ -124,7 +94,7 @@ def test_documented_aggregation_cases(
                  signal_type=kind, signal_id=index)
         for index, (author, stage, minute, kind) in enumerate(reports)
     ]
-    trace = aggregator.aggregate_with_trace(signals, end)
+    trace = aggregator.aggregate_with_trace(signals)
     assert trace.result.model_dump() == {
         "congestion_level": level,
         "report_count": report_count,
@@ -238,7 +208,7 @@ def test_same_timestamp_identical_votes_count_author_once() -> None:
     }
 
 
-def test_trace_keeps_original_source_indices_after_window_filtering() -> None:
+def test_trace_keeps_all_source_indices_without_time_filtering() -> None:
     trace_aggregate = getattr(aggregator, "aggregate_with_trace", None)
     assert callable(trace_aggregate)
     trace = trace_aggregate(
@@ -247,15 +217,15 @@ def test_trace_keeps_original_source_indices_after_window_filtering() -> None:
             Judgment("a", AS_OF - timedelta(minutes=3), "HIGH", frozenset({"EVENT"})),
             Judgment("a", AS_OF, "LOW"),
         ],
-        AS_OF,
     )
 
-    assert trace.stage_votes[0].signal_indices == (2,)
+    assert trace.stage_votes[0].signal_indices == (0,)
+    assert trace.stage_votes[1].signal_indices == (2,)
     # 최신 유효 제보(인덱스 2)에 원인이 없으므로 원인 선택도 인덱스 2다(U12).
-    assert trace.cause_votes[0].signal_indices == (2,)
-    assert trace.cause_votes[0].value == frozenset()
-    assert trace.stage_counts == {"LOW": 1, "MEDIUM": 0, "HIGH": 0}
-    assert trace.result.report_count == 1
+    assert trace.cause_votes[1].signal_indices == (2,)
+    assert trace.cause_votes[1].value == frozenset()
+    assert trace.stage_counts == {"LOW": 1, "MEDIUM": 0, "HIGH": 1}
+    assert trace.result.report_count == 2
 
 
 def test_each_cause_counts_distinct_authors() -> None:

@@ -28,7 +28,6 @@ class PreparedSpot:
 
     spot_id: int
     as_of: datetime
-    window: timedelta
     post_bundles: tuple[CongestionPostBundleInput, ...]
     candidates: tuple[CandidateSignal, ...]
 
@@ -39,20 +38,17 @@ def is_in_window(
     return as_of - window < created_at <= as_of
 
 
-def prepare_spot(spot: CongestionSpotInput, as_of: datetime, window: timedelta) -> PreparedSpot:
-    """검증된 스팟에서 창 안의 원글·댓글을 각각 분류 후보로 만든다.
+def prepare_spot(spot: CongestionSpotInput, as_of: datetime) -> PreparedSpot:
+    """문맥용 원글을 제외한 원글과 모든 댓글을 분류 후보로 만든다.
 
     후보가 있는 묶음의 원문 전체를 보관해 후속 단계에서 부모·댓글 문맥을 참조한다.
     작성자의 반복 제보와 일반 글도 관련성·개별 판정을 거칠 수 있도록 그대로 남긴다.
     """
-    if window <= timedelta(0):
-        raise ValueError("window must be positive")
-
     post_bundles: list[CongestionPostBundleInput] = []
     candidates: list[CandidateSignal] = []
     for post in spot.post_bundles:
         post_candidates: list[CandidateSignal] = []
-        if is_in_window(post.created_at, as_of, window):
+        if not post.context_only:
             post_candidates.append(
                 CandidateSignal(
                     signal_type="post",
@@ -65,18 +61,17 @@ def prepare_spot(spot: CongestionSpotInput, as_of: datetime, window: timedelta) 
                 )
             )
         for comment in post.comments:
-            if is_in_window(comment.created_at, as_of, window):
-                post_candidates.append(
-                    CandidateSignal(
-                        signal_type="comment",
-                        signal_id=comment.comment_id,
-                        post_id=post.post_id,
-                        title=None,
-                        content=comment.content,
-                        author_key=comment.author_key,
-                        created_at=comment.created_at,
-                    )
+            post_candidates.append(
+                CandidateSignal(
+                    signal_type="comment",
+                    signal_id=comment.comment_id,
+                    post_id=post.post_id,
+                    title=None,
+                    content=comment.content,
+                    author_key=comment.author_key,
+                    created_at=comment.created_at,
                 )
+            )
         if post_candidates:
             post_bundles.append(post)
             candidates.extend(post_candidates)
@@ -84,7 +79,6 @@ def prepare_spot(spot: CongestionSpotInput, as_of: datetime, window: timedelta) 
     return PreparedSpot(
         spot_id=spot.spot_id,
         as_of=as_of,
-        window=window,
         post_bundles=tuple(post_bundles),
         candidates=tuple(candidates),
     )

@@ -8,6 +8,7 @@
         "post_bundles": [
           {
             "post_id": 1,
+            "context_only": false,
             "title": "행사 때문에 사람 엄청 많아요",
             "content": "지금 행사 때문에 사람이 엄청 많아요.",
             "author_key": "u1",
@@ -29,6 +30,7 @@
           },
           {
             "post_id": 3,
+            "context_only": false,
             "title": "이제 한산해요",
             "content": "지금은 한산해요.",
             "author_key": "u1",
@@ -37,6 +39,7 @@
           },
           {
             "post_id": 4,
+            "context_only": false,
             "title": "볼 만한 영화 추천해 주세요",
             "content": "추천하는 영화가 있나요?",
             "author_key": "u4",

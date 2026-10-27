@@ -1,6 +1,6 @@
 """관련성 확률에 따른 선별과 후보 ID·문맥 보존을 검증한다."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import pytest
@@ -18,6 +18,7 @@ def prepared() -> PreparedSpot:
             "post_bundles": [
                 {
                     "post_id": 1,
+                    "context_only": False,
                     "title": "지금 상황",
                     "content": "지금 사람이 많아요.",
                     "author_key": "repeat",
@@ -40,9 +41,7 @@ def prepared() -> PreparedSpot:
             ],
         }
     )
-    return prepare_spot(
-        spot, datetime.fromisoformat("2026-10-12T12:00:00+09:00"), timedelta(minutes=10)
-    )
+    return prepare_spot(spot, datetime.fromisoformat("2026-10-12T12:00:00+09:00"))
 
 
 @pytest.mark.parametrize(
@@ -144,7 +143,6 @@ def test_empty_spot_skips_scoring() -> None:
     prepared = prepare_spot(
         CongestionSpotInput(spot_id=1, post_bundles=[]),
         datetime.fromisoformat("2026-10-12T12:00:00+09:00"),
-        timedelta(minutes=10),
     )
 
     def unexpected(_prepared: PreparedSpot) -> dict[relevance.SignalKey, float]:
