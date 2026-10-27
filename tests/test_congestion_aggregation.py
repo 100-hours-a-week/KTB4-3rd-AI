@@ -96,14 +96,41 @@ def test_aggregation_rejects_nonpositive_window(minutes: int) -> None:
         aggregator.aggregate_signals([], AS_OF, window=timedelta(minutes=minutes))
 
 
-def test_stage_tie_returns_unknown_and_keeps_voter_count() -> None:
-    assert aggregate(
-        Judgment("a", AS_OF, "LOW"), Judgment("b", AS_OF, "HIGH")
-    ) == {
-        "congestion_level": "UNKNOWN",
-        "report_count": 2,
-        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
+@pytest.mark.parametrize(
+    ("reports", "level", "report_count", "decision"),
+    [
+        ([("a1", "LOW", 52, "post"), ("a2", "HIGH", 57, "post")],
+         "HIGH", 2, "TIE_LATEST"),
+        ([("a1", "HIGH", 50, "post"), ("a2", "HIGH", 51, "post"),
+          ("a3", "LOW", 59, "post")], "HIGH", 3, "UNIQUE_TOP"),
+        ([("a1", "LOW", 55, "post"), ("a2", "HIGH", 55, "comment")],
+         "HIGH", 2, "TIE_LATEST"),
+        ([("a1", "HIGH", 50, "post"), ("a1", "LOW", 58, "post"),
+          ("a2", "HIGH", 55, "post")], "LOW", 2, "TIE_LATEST"),
+        ([("a1", "MEDIUM", 59, "post"), ("a2", "LOW", 50, "post"),
+          ("a3", "LOW", 51, "post"), ("a4", "HIGH", 52, "post"),
+          ("a5", "HIGH", 53, "post")], "HIGH", 5, "TIE_LATEST"),
+        ([], "UNKNOWN", 0, "NO_VALID_STAGE"),
+    ],
+    ids=["case-1", "case-2", "case-3", "case-4", "case-5", "case-6"],
+)
+def test_documented_aggregation_cases(
+    reports: list[tuple[str, str, int, str]], level: str, report_count: int, decision: str
+) -> None:
+    """문서의 집계 사례 1~6을 확인한다."""
+    end = datetime(2026, 10, 27, 18, 0, tzinfo=timezone(timedelta(hours=9)))
+    signals = [
+        Judgment(author, end.replace(hour=17, minute=minute), stage,
+                 signal_type=kind, signal_id=index)
+        for index, (author, stage, minute, kind) in enumerate(reports)
+    ]
+    trace = aggregator.aggregate_with_trace(signals, end)
+    assert trace.result.model_dump() == {
+        "congestion_level": level,
+        "report_count": report_count,
+        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}] if report_count else [],
     }
+    assert trace.decision == decision
 
 
 @pytest.mark.parametrize("signals", [(), (Judgment("a", AS_OF),)])
@@ -169,7 +196,7 @@ def test_same_timestamp_prefers_larger_id_within_same_type() -> None:
         Judgment("a", AS_OF, "LOW", frozenset({"DELAY"}), "post", 2),
         Judgment("b", AS_OF, "MEDIUM", frozenset({"EVENT"}), "post", 3),
     ) == {
-        "congestion_level": "UNKNOWN",
+        "congestion_level": "MEDIUM",
         "report_count": 2,
         "causes": [
             {"cause_code": "DELAY", "report_count": 1},

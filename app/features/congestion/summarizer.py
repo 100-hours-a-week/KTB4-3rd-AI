@@ -30,11 +30,6 @@ def summarize_result(result: CongestionResult) -> str:
             f"제보 기준 혼잡도는 {LEVEL_LABELS[result.congestion_level]}이며, "
             f"혼잡 제보자는 {result.report_count}명입니다."
         )
-    elif result.report_count:
-        stage = (
-            "혼잡 단계가 동률이라 현재 단계를 확정하기 어렵습니다. "
-            f"혼잡 제보자는 {result.report_count}명입니다."
-        )
     else:
         stage = "혼잡 단계를 판단할 유효 제보가 없습니다."
     concrete = [cause for cause in result.causes if cause.cause_code != "UNKNOWN"]

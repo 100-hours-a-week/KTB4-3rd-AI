@@ -16,21 +16,10 @@ def test_known_level_summary_uses_final_stage_and_count(level: str, label: str) 
     assert summarize_result(result) == f"제보 기준 혼잡도는 {label}이며, 혼잡 제보자는 2명입니다."
 
 
-def test_empty_result_has_nonblank_summary_without_invented_stage() -> None:
-    result = CongestionResult(congestion_level="UNKNOWN", report_count=0, causes=[])
+@pytest.mark.parametrize("report_count", [0, 2])
+def test_unknown_result_uses_no_valid_report_summary(report_count: int) -> None:
+    result = CongestionResult(congestion_level="UNKNOWN", report_count=report_count, causes=[])
     assert summarize_result(result) == "혼잡 단계를 판단할 유효 제보가 없습니다."
-
-
-def test_tie_summary_keeps_voter_count_and_does_not_pick_stage() -> None:
-    result = CongestionResult(
-        congestion_level="UNKNOWN",
-        report_count=2,
-        causes=[CongestionCause(cause_code="UNKNOWN", report_count=0)],
-    )
-    assert summarize_result(result) == (
-        "혼잡 단계가 동률이라 현재 단계를 확정하기 어렵습니다. 혼잡 제보자는 2명입니다. "
-        "구체적인 혼잡 원인은 제보되지 않았습니다."
-    )
 
 
 def test_cause_only_summary_preserves_cause_count_without_stage_vote() -> None:

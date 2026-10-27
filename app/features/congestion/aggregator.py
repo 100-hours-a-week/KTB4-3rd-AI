@@ -4,7 +4,7 @@ from collections import Counter
 from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Generic, Literal, Protocol, TypeVar
+from typing import Generic, Literal, Protocol, TypeVar, cast
 
 from .models import CauseCode, CongestionCause, CongestionLevel, CongestionResult
 from .preprocessor import WINDOW, is_in_window
@@ -54,6 +54,7 @@ class AuthorVote(Generic[Vote]):
 
     author_key: str
     created_at: datetime
+    order: tuple[datetime, int, int]
     signal_indices: tuple[int, ...]
     values: frozenset[Vote]
 
@@ -71,7 +72,7 @@ class AggregationTrace:
     stage_votes: tuple[AuthorVote[Stage], ...]
     cause_votes: tuple[AuthorVote[frozenset[CauseCode]], ...]
     stage_counts: dict[Stage, int]
-    decision: Literal["UNIQUE_TOP", "TIE", "NO_VALID_STAGE"]
+    decision: Literal["UNIQUE_TOP", "TIE_LATEST", "NO_VALID_STAGE"]
 
 
 def _latest_votes(
@@ -91,7 +92,7 @@ def _latest_votes(
             current[1].add(value)
             current[2].append(index)
     return tuple(
-        AuthorVote(author, order[0], tuple(indices), frozenset(values))
+        AuthorVote(author, order[0], order, tuple(indices), frozenset(values))
         for author, (order, values, indices) in latest.items()
     )
 
@@ -135,14 +136,21 @@ def aggregate_with_trace(
     stage_votes: tuple[AuthorVote[Stage], ...] = _latest_votes(current, _stage_of)
     stages = [value for vote in stage_votes if (value := vote.value) is not None]
     stage_counts = Counter(stages)
-    decision: Literal["UNIQUE_TOP", "TIE", "NO_VALID_STAGE"]
+    decision: Literal["UNIQUE_TOP", "TIE_LATEST", "NO_VALID_STAGE"]
     if stage_counts:
         most_votes = max(stage_counts.values())
         winners = [
             stage for stage, count in stage_counts.items() if count == most_votes
         ]
-        level: CongestionLevel = winners[0] if len(winners) == 1 else "UNKNOWN"
-        decision = "UNIQUE_TOP" if len(winners) == 1 else "TIE"
+        level: CongestionLevel
+        if len(winners) == 1:
+            level, decision = winners[0], "UNIQUE_TOP"
+        else:
+            latest = max(
+                (vote for vote in stage_votes if vote.value in winners),
+                key=lambda vote: vote.order,
+            )
+            level, decision = cast(Stage, latest.value), "TIE_LATEST"
     else:
         level = "UNKNOWN"
         decision = "NO_VALID_STAGE"
