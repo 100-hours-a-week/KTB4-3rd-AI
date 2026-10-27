@@ -63,7 +63,7 @@ def test_http_accepts_explicit_window_for_empty_spot(minutes: int) -> None:
 def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    case_path = Path(__file__).resolve().parents[1] / "examples/congestion/spot-preview.json"
+    case_path = Path(__file__).parent / "fixtures/congestion/spot-preview.json"
     case = json.loads(case_path.read_text())
     data = case["request"]
     data["spots"].append({"spot_id": 8, "post_bundles": []})
@@ -153,7 +153,7 @@ def test_missing_model_key_fails_only_nonempty_spot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
-    case_path = Path(__file__).resolve().parents[1] / "examples/congestion/spot-preview.json"
+    case_path = Path(__file__).parent / "fixtures/congestion/spot-preview.json"
     data = json.loads(case_path.read_text())["request"]
     data["spots"].append({"spot_id": 8, "post_bundles": []})
     response = TestClient(app).post("/congestion-analyses", json=data)
@@ -180,7 +180,7 @@ def test_analysis_failure_logs_only_identifiers_and_type_without_calling_extract
     error: Exception,
     error_type: str,
 ) -> None:
-    case_path = Path(__file__).resolve().parents[1] / "examples/congestion/spot-preview.json"
+    case_path = Path(__file__).parent / "fixtures/congestion/spot-preview.json"
     data = json.loads(case_path.read_text())["request"]
     data["request_id"] = "log-request-1\nforged"
     data["spots"].append({"spot_id": 8, "post_bundles": []})
