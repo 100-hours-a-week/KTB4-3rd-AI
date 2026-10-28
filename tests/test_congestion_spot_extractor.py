@@ -6,8 +6,7 @@ from typing import Any
 
 import pytest
 
-from app.core.exceptions import UpstreamError
-from app.features.congestion.extractor import ModelOutputInvalid
+from app.core.exceptions import CongestionParseFailed, UpstreamError
 from app.features.congestion.preprocessor import CandidateSignal
 from app.features.congestion.spot_extractor import assess_spot
 from app.features.congestion.spot_input import SpotLLMInput
@@ -101,7 +100,7 @@ def test_target_mismatch_rejects_entire_spot(model_input: SpotLLMInput, case: st
         body["signals"][1]["signal_id"] = 1
     else:
         body["signals"][1]["signal_type"] = "reply"
-    with pytest.raises(ModelOutputInvalid):
+    with pytest.raises(CongestionParseFailed):
         assess_spot(model_input, lambda _: json.dumps(body))
 
 
@@ -123,7 +122,7 @@ def test_invalid_signal_fields_are_rejected(
 ) -> None:
     body = output()
     body["signals"][0][field] = value
-    with pytest.raises(ModelOutputInvalid):
+    with pytest.raises(CongestionParseFailed):
         assess_spot(model_input, lambda _: json.dumps(body))
 
 
@@ -139,7 +138,7 @@ def test_invalid_spot_envelope_is_rejected(model_input: SpotLLMInput, case: str)
         raw = "```json\n{}\n```"
     elif case == "non_text":
         raw = body
-    with pytest.raises(ModelOutputInvalid):
+    with pytest.raises(CongestionParseFailed):
         assess_spot(model_input, lambda _: raw)
 
 

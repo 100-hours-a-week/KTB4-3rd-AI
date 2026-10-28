@@ -79,16 +79,28 @@ class DecisionsRelevanceScorer:
             try:
                 parsed = _DecisionResponse.model_validate(response)
             except (ValidationError, ValueError) as exc:
-                raise RelevanceOutputInvalid("decisions response is invalid") from exc
+                reason = (
+                    "bad_probability"
+                    if isinstance(exc, ValidationError)
+                    and any("probability" in error["loc"] for error in exc.errors())
+                    else "not_json"
+                )
+                raise RelevanceOutputInvalid(
+                    "decisions response is invalid", reason=reason
+                ) from exc
 
             seen: set[str] = set()
             for answer in parsed.answers:
                 if answer.name not in names or answer.name in seen:
                     raise RelevanceOutputInvalid(
-                        "decisions answer names do not match questions"
+                        "decisions answer names do not match questions",
+                        reason="id_mismatch",
                     )
                 seen.add(answer.name)
                 scores[names[answer.name]] = answer.probability
             if seen != set(names):
-                raise RelevanceOutputInvalid("decisions answer names do not match questions")
+                raise RelevanceOutputInvalid(
+                    "decisions answer names do not match questions",
+                    reason="id_mismatch",
+                )
         return scores

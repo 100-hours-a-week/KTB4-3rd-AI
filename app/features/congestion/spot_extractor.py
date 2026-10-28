@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from pydantic import ValidationError
 
+from ...core.exceptions import CongestionParseFailed
+from ...core.logging import get_logger
 from .extractor import (
     JUDGMENT_RULES,
     AssessedSignal,
@@ -12,6 +14,8 @@ from .extractor import (
     ModelOutputInvalid,
 )
 from .spot_input import SpotLLMInput
+
+logger = get_logger(__name__)
 
 SPOT_INSTRUCTIONS = """\
 너는 한 스팟의 원글·댓글을 각각 판정한다.
@@ -51,18 +55,24 @@ def assess_spot(model_input: SpotLLMInput | None, complete: Callable[[str], str]
     """전체 대상·값을 검증한 경우에만 원본 순서로 판정을 반환한다."""
     if model_input is None:
         return AssessedSpot(signals=())
-    raw = complete(SPOT_PROMPT + model_input.payload)
-    if not isinstance(raw, str):
-        raise ModelOutputInvalid("api model did not return text")
+    reason = "not_json"
     try:
-        decision = BundleDecision.model_validate_json(raw)
-    except (ValidationError, ValueError) as exc:
-        raise ModelOutputInvalid("api model spot output is invalid") from exc
+        raw = complete(SPOT_PROMPT + model_input.payload)
+        if not isinstance(raw, str):
+            raise ModelOutputInvalid("api model did not return text")
+        try:
+            decision = BundleDecision.model_validate_json(raw)
+        except (ValidationError, ValueError) as exc:
+            raise ModelOutputInvalid("api model spot output is invalid") from exc
 
-    by_key = {(item.signal_type, item.signal_id): item for item in decision.signals}
-    expected = {(item.signal_type, item.signal_id) for item in model_input.targets}
-    if len(by_key) != len(decision.signals) or set(by_key) != expected:
-        raise ModelOutputInvalid("api model output IDs do not match targets")
+        by_key = {(item.signal_type, item.signal_id): item for item in decision.signals}
+        expected = {(item.signal_type, item.signal_id) for item in model_input.targets}
+        reason = "id_mismatch"
+        if len(by_key) != len(decision.signals) or set(by_key) != expected:
+            raise ModelOutputInvalid("api model output IDs do not match targets")
+    except ModelOutputInvalid as exc:
+        logger.warning("congestion judge invalid: reason=%s", reason)
+        raise CongestionParseFailed() from exc
 
     assessed = tuple(
         AssessedSignal(

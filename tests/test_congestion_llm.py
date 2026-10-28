@@ -275,8 +275,10 @@ def test_http_uses_real_analyzer_pipeline_with_injected_model(
     }
 
 
-@pytest.mark.parametrize("error", [ModelNotReady(), UpstreamError(), ModelOutputInvalid("bad")])
-def test_expected_model_error_returns_failed_message(error: Exception) -> None:
+@pytest.mark.parametrize(
+    "error", [ModelNotReady(), UpstreamError(), ModelOutputInvalid("bad")]
+)
+def test_expected_model_error_returns_http_error(error: Exception) -> None:
     data = request_data()
 
     def fail(_prompt: str) -> str:
@@ -287,18 +289,14 @@ def test_expected_model_error_returns_failed_message(error: Exception) -> None:
         response = TestClient(app).post("/congestion-analyses", json=data)
     finally:
         app.dependency_overrides.pop(get_analyzer, None)
-    assert response.status_code == 200
-    assert {
-        key: value
-        for key, value in response.json().items()
-        if key not in {"event_id", "schema_version", "window_end", "analyzed_at"}
-    } == {
-        "spot_id": 1,
-        "analysis_status": "FAILED",
-        "result": None,
-        "code": "ANALYSIS_FAILED",
-        "message": "analysis failed",
-    }
+    assert response.status_code == (503 if isinstance(error, ModelNotReady) else 502)
+    assert response.json()["code"] == (
+        "MODEL_NOT_READY"
+        if isinstance(error, ModelNotReady)
+        else "CONGESTION_PARSE_FAILED"
+        if isinstance(error, ModelOutputInvalid)
+        else "UPSTREAM_FAILED"
+    )
 
 
 def test_failed_message_does_not_retry_and_next_request_continues() -> None:
@@ -329,9 +327,10 @@ def test_failed_message_does_not_retry_and_next_request_continues() -> None:
         successful = client.post("/congestion-analyses", json=data)
     finally:
         app.dependency_overrides.pop(get_analyzer, None)
-    assert failed.status_code == successful.status_code == 200
+    assert failed.status_code == 502
+    assert successful.status_code == 200
     assert called == [1, 2]
-    assert failed.json()["analysis_status"] == "FAILED"
+    assert failed.json()["code"] == "UPSTREAM_FAILED"
     assert successful.json()["result"] == {
         "congestion_level": "MEDIUM",
         "report_count": 1,

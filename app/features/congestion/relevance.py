@@ -15,6 +15,10 @@ RelevanceScorer = Callable[[PreparedSpot], Mapping[SignalKey, float]]
 class RelevanceOutputInvalid(ValueError):
     """관련성 응답의 대상 ID나 확률이 올바르지 않다."""
 
+    def __init__(self, message: str, *, reason: str = "not_json") -> None:
+        super().__init__(message)
+        self.reason = reason
+
 
 def _valid_probability(value: object) -> bool:
     return (
@@ -69,13 +73,17 @@ def classify_spot(
     scores = score(prepared)
     expected = {(item.signal_type, item.signal_id) for item in prepared.candidates}
     if set(scores) != expected:
-        raise RelevanceOutputInvalid("relevance score IDs do not match candidates")
+        raise RelevanceOutputInvalid(
+            "relevance score IDs do not match candidates", reason="id_mismatch"
+        )
 
     decisions: list[RelevanceDecision] = []
     for candidate in prepared.candidates:
         probability = scores[(candidate.signal_type, candidate.signal_id)]
         if not _valid_probability(probability):
-            raise RelevanceOutputInvalid("relevance probability is invalid")
+            raise RelevanceOutputInvalid(
+                "relevance probability is invalid", reason="bad_probability"
+            )
         status: RelevanceStatus
         if probability < policy.exclude_below:
             status = "UNRELATED"

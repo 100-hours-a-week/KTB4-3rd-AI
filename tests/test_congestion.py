@@ -12,9 +12,9 @@ from app.features.congestion.models import (
     CongestionResult,
 )
 from app.features.congestion.service import (
-    AnalysisError,
     FakeCongestionAnalyzer,
     analyze_message,
+    failure_result,
     get_analyzer,
 )
 from app.main import app
@@ -79,17 +79,16 @@ def assert_invalid(payload: object) -> None:
 def test_message_result_preserves_window_and_has_completion_metadata(
     payload: dict[str, Any], failed: bool
 ) -> None:
-    class FailingAnalyzer:
-        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
-            raise AnalysisError("private details")
-
-    if failed:
-        app.dependency_overrides[get_analyzer] = FailingAnalyzer
     before = datetime.now(UTC)
-    response = TestClient(app).post(ENDPOINT, json=payload)
+    if failed:
+        body = failure_result(
+            CongestionAnalysisMessage.model_validate(payload)
+        ).model_dump(mode="json")
+    else:
+        response = TestClient(app).post(ENDPOINT, json=payload)
+        assert response.status_code == 200
+        body = response.json()
     after = datetime.now(UTC)
-    assert response.status_code == 200
-    body = response.json()
     assert body["spot_id"] == payload["spot_id"]
     assert body["window_end"] == payload["window_end"]
     returned = datetime.fromisoformat(body["window_end"])
@@ -107,7 +106,6 @@ def test_message_result_preserves_window_and_has_completion_metadata(
         assert body["result"] is None
         assert body["code"] == "ANALYSIS_FAILED"
         assert body["message"] == "analysis failed"
-        assert "private" not in response.text
     else:
         assert body["result"] == {
             "congestion_level": "MEDIUM",
