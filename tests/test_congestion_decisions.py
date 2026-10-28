@@ -106,7 +106,7 @@ def test_bundle_requests_classify_all_candidates_and_keep_parent_context(
     ]
     assert all(payload["model"] == "gpt-6-luna" for payload in received)
     context = json.loads(received[0]["input"])
-    assert context["as_of"] == "2026-10-12T12:00:00+09:00"
+    assert context["window_end"] == "2026-10-12T12:00:00+09:00"
     assert context["post_bundle"]["title"] == "오래된 부모"
     assert [item["comment_id"] for item in context["post_bundle"]["comments"]] == [1, 2, 3]
 

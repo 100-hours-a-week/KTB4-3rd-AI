@@ -27,7 +27,7 @@ class PreparedSpot:
     """분류 후보와 후속 입력 구성에서 참조할 부모·댓글 원문."""
 
     spot_id: int
-    as_of: datetime
+    window_end: datetime
     post_bundles: tuple[CongestionPostBundleInput, ...]
     candidates: tuple[CandidateSignal, ...]
 
@@ -38,7 +38,7 @@ def is_in_window(
     return as_of - window < created_at <= as_of
 
 
-def prepare_spot(spot: CongestionSpotInput, as_of: datetime) -> PreparedSpot:
+def prepare_spot(spot: CongestionSpotInput, window_end: datetime) -> PreparedSpot:
     """문맥용 원글을 제외한 원글과 모든 댓글을 분류 후보로 만든다.
 
     후보가 있는 묶음의 원문 전체를 보관해 후속 단계에서 부모·댓글 문맥을 참조한다.
@@ -78,7 +78,7 @@ def prepare_spot(spot: CongestionSpotInput, as_of: datetime) -> PreparedSpot:
 
     return PreparedSpot(
         spot_id=spot.spot_id,
-        as_of=as_of,
+        window_end=window_end,
         post_bundles=tuple(post_bundles),
         candidates=tuple(candidates),
     )

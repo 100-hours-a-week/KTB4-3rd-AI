@@ -1,22 +1,20 @@
 from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-from datetime import datetime, timedelta
-from threading import Event, Lock
+from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.features.congestion.models import (
-    CongestionAnalysisRequest,
+    CongestionAnalysisMessage,
     CongestionResult,
-    CongestionSpotInput,
 )
 from app.features.congestion.service import (
     AnalysisError,
     FakeCongestionAnalyzer,
-    analyze_request,
+    analyze_message,
     get_analyzer,
 )
 from app.main import app
@@ -39,32 +37,27 @@ def use_fake_analyzer_for_existing_contract_tests() -> Iterator[None]:
 @pytest.fixture
 def payload() -> dict[str, Any]:
     return {
-        "request_id": "req-001",
-        "as_of": "2026-10-07T15:00:00+09:00",
-        "window_minutes": 10,
-        "spots": [
+        "event_id": "req-001",
+        "schema_version": 1,
+        "window_end": "2026-10-07T15:00:00+09:00",
+        "spot_id": 1,
+        "post_bundles": [
             {
-                "spot_id": 1,
-                "post_bundles": [
+                "post_id": 10,
+                "context_only": False,
+                "title": "현재 상황",
+                "content": "사람이 많아요.",
+                "author_key": "author-1",
+                "created_at": "2026-10-07T14:55:00+09:00",
+                "comments": [
                     {
-                        "post_id": 10,
-                        "context_only": False,
-                        "title": "현재 상황",
-                        "content": "사람이 많아요.",
+                        "comment_id": 10,
+                        "content": "저도 여기 있어요.",
                         "author_key": "author-1",
-                        "created_at": "2026-10-07T14:55:00+09:00",
-                        "comments": [
-                            {
-                                "comment_id": 10,
-                                "content": "저도 여기 있어요.",
-                                "author_key": "author-1",
-                                "created_at": "2026-10-07T14:56:00+09:00",
-                            }
-                        ],
+                        "created_at": "2026-10-07T14:56:00+09:00",
                     }
                 ],
-            },
-            {"spot_id": 2, "post_bundles": []},
+            }
         ],
     }
 
@@ -72,10 +65,7 @@ def payload() -> dict[str, Any]:
 def node(payload: dict[str, Any], level: str) -> dict[str, Any]:
     if level == "request":
         return payload
-    spot = payload["spots"][0]
-    if level == "spot":
-        return spot
-    post = spot["post_bundles"][0]
+    post = payload["post_bundles"][0]
     return post if level == "post" else post["comments"][0]
 
 
@@ -85,46 +75,57 @@ def assert_invalid(payload: object) -> None:
     assert response.json() == INVALID
 
 
-def test_valid_request_returns_fake_result_and_empty_spot(
-    payload: dict[str, Any],
+@pytest.mark.parametrize("failed", [False, True])
+def test_message_result_preserves_window_and_has_completion_metadata(
+    payload: dict[str, Any], failed: bool
 ) -> None:
+    class FailingAnalyzer:
+        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+            raise AnalysisError("private details")
+
+    if failed:
+        app.dependency_overrides[get_analyzer] = FailingAnalyzer
+    before = datetime.now(UTC)
     response = TestClient(app).post(ENDPOINT, json=payload)
+    after = datetime.now(UTC)
     assert response.status_code == 200
-    assert response.json() == {
-        "request_id": "req-001",
-        "spots": [
-            {
-                "spot_id": 1,
-                "analysis_status": "SUCCESS",
-                "result": {
-                    "congestion_level": "MEDIUM",
-                    "report_count": 1,
-                    "causes": [{"cause_code": "EVENT", "report_count": 1}],
-                    "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. "
-                    "제보된 원인은 행사·공연·경기(1명)입니다.",
-                },
-            },
-            {
-                "spot_id": 2,
-                "analysis_status": "SUCCESS",
-                "result": {
-                    "congestion_level": "UNKNOWN",
-                    "report_count": 0,
-                    "causes": [],
-                    "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
-                },
-            },
-        ],
-    }
+    body = response.json()
+    assert body["spot_id"] == payload["spot_id"]
+    assert body["window_end"] == payload["window_end"]
+    returned = datetime.fromisoformat(body["window_end"])
+    requested = datetime.fromisoformat(payload["window_end"])
+    assert returned == requested
+    assert returned.utcoffset() == requested.utcoffset()
+    analyzed_at = datetime.fromisoformat(body["analyzed_at"])
+    assert analyzed_at.tzinfo is not None
+    assert before <= analyzed_at <= after
+    assert UUID(body["event_id"]).version == 4
+    assert body["event_id"] != payload["event_id"]
+    assert body["schema_version"] == 1
+    assert body["analysis_status"] == ("FAILED" if failed else "SUCCESS")
+    if failed:
+        assert body["result"] is None
+        assert body["code"] == "ANALYSIS_FAILED"
+        assert body["message"] == "analysis failed"
+        assert "private" not in response.text
+    else:
+        assert body["result"] == {
+            "congestion_level": "MEDIUM",
+            "report_count": 1,
+            "causes": [{"cause_code": "EVENT", "report_count": 1}],
+            "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. "
+            "제보된 원인은 행사·공연·경기(1명)입니다.",
+        }
+    assert "spots" not in body
+    assert "request_id" not in body
 
 
 FIELDS = [
-    ("request", "request_id"),
-    ("request", "as_of"),
-    ("request", "window_minutes"),
-    ("request", "spots"),
-    ("spot", "spot_id"),
-    ("spot", "post_bundles"),
+    ("request", "event_id"),
+    ("request", "window_end"),
+    ("request", "schema_version"),
+    ("request", "spot_id"),
+    ("request", "post_bundles"),
     ("post", "context_only"),
     ("post", "post_id"),
     ("post", "title"),
@@ -150,7 +151,7 @@ def test_required_fields(payload: dict[str, Any], level: str, field: str, mode: 
     assert_invalid(payload)
 
 
-@pytest.mark.parametrize("level", ["request", "spot", "post", "comment"])
+@pytest.mark.parametrize("level", ["request", "post", "comment"])
 def test_unknown_fields_rejected(payload: dict[str, Any], level: str) -> None:
     node(payload, level)["unexpected"] = True
     assert_invalid(payload)
@@ -159,7 +160,7 @@ def test_unknown_fields_rejected(payload: dict[str, Any], level: str) -> None:
 @pytest.mark.parametrize(
     ("level", "field"),
     [
-        ("spot", "spot_id"),
+        ("request", "spot_id"),
         ("post", "post_id"),
         ("comment", "comment_id"),
     ],
@@ -172,39 +173,22 @@ def test_ids_are_strict_positive_integers(
     assert_invalid(payload)
 
 
-@pytest.mark.parametrize(
-    "duplicate",
-    [
-        "spot",
-        "post_in_spot",
-        "post_across_spots",
-        "comment_in_post",
-        "comment_across_posts",
-    ],
-)
-def test_duplicate_ids_rejected_across_request(payload: dict[str, Any], duplicate: str) -> None:
-    spot = node(payload, "spot")
+@pytest.mark.parametrize("duplicate", ["post", "comment_in_post", "comment_across_posts"])
+def test_duplicate_ids_rejected_in_message(payload: dict[str, Any], duplicate: str) -> None:
     post = node(payload, "post")
-    if duplicate == "spot":
-        payload["spots"][1]["spot_id"] = 1
-    elif duplicate.startswith("post"):
-        copied = deepcopy(post)
-        copied["comments"] = []
-        target = spot if duplicate == "post_in_spot" else payload["spots"][1]
-        target["post_bundles"].append(copied)
+    if duplicate == "post":
+        payload["post_bundles"].append(dict(post, comments=[]))
     elif duplicate == "comment_in_post":
         post["comments"].append(deepcopy(post["comments"][0]))
     else:
-        copied = deepcopy(post)
-        copied["post_id"] = 11
-        payload["spots"][1]["post_bundles"].append(copied)
+        payload["post_bundles"].append(dict(post, post_id=11))
     assert_invalid(payload)
 
 
 @pytest.mark.parametrize(
     ("level", "field"),
     [
-        ("request", "as_of"),
+        ("request", "window_end"),
         ("post", "created_at"),
         ("comment", "created_at"),
     ],
@@ -220,7 +204,7 @@ def test_timestamps_require_iso_string_and_timezone(
 
 
 TEXT_FIELDS = [
-    ("request", "request_id", 128),
+    ("request", "event_id", 128),
     ("post", "author_key", 128),
     ("comment", "author_key", 128),
     ("post", "title", 30),
@@ -249,8 +233,13 @@ def test_text_length_boundaries(
     assert_invalid(payload)
 
 
-def test_empty_request_rejected(payload: dict[str, Any]) -> None:
-    payload["spots"] = []
+def test_empty_post_bundles_rejected_before_analysis(payload: dict[str, Any]) -> None:
+    class UnexpectedAnalyzer:
+        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+            pytest.fail("빈 묶음이 분석기에 전달됨")
+
+    app.dependency_overrides[get_analyzer] = UnexpectedAnalyzer
+    payload["post_bundles"] = []
     assert_invalid(payload)
 
 
@@ -262,26 +251,21 @@ def test_skeleton_still_does_not_filter_old_content_or_judge_text(
     node(payload, "comment")["created_at"] = "2000-01-01T00:00:00+00:00"
     response = TestClient(app).post(ENDPOINT, json=payload)
     assert response.status_code == 200
-    assert response.json()["spots"][0]["result"]["congestion_level"] == "MEDIUM"
+    assert response.json()["result"]["congestion_level"] == "MEDIUM"
 
 
 @pytest.mark.parametrize("level", ["post", "comment"])
-def test_future_signal_rejected_relative_to_as_of(payload: dict[str, Any], level: str) -> None:
-    # 15:00+09:00은 06:00Z와 같은 시각이다. 문자열이 아닌 실제 시각을 비교한다.
+def test_future_signal_is_accepted(payload: dict[str, Any], level: str) -> None:
     node(payload, level)["created_at"] = "2026-10-07T06:00:01Z"
-    assert_invalid(payload)
+    assert TestClient(app).post(ENDPOINT, json=payload).status_code == 200
 
 
-@pytest.mark.parametrize("kind", ["spots", "posts", "comments", "total_signals"])
+@pytest.mark.parametrize("kind", ["posts", "comments", "total_signals"])
 def test_request_size_boundaries(payload: dict[str, Any], kind: str) -> None:
     post = node(payload, "post")
     comment = deepcopy(node(payload, "comment"))
-    if kind == "spots":
-        payload["spots"] = [{"spot_id": i + 1, "post_bundles": []} for i in range(20)]
-        overflow = {"spot_id": 21, "post_bundles": []}
-        target = payload["spots"]
-    elif kind == "posts":
-        target = node(payload, "spot")["post_bundles"]
+    if kind == "posts":
+        target = payload["post_bundles"]
         target[:] = [dict(post, post_id=i + 1, comments=[]) for i in range(50)]
         overflow = dict(post, post_id=51, comments=[])
     elif kind == "comments":
@@ -290,7 +274,7 @@ def test_request_size_boundaries(payload: dict[str, Any], kind: str) -> None:
         overflow = dict(comment, comment_id=101)
     else:
         # 원글 10개와 댓글 990개로 제보 1,000개를 만들되 각 목록의 개별 상한은 지킨다.
-        target_posts = node(payload, "spot")["post_bundles"]
+        target_posts = payload["post_bundles"]
         target_posts[:] = [
             dict(
                 post,
@@ -309,220 +293,46 @@ def test_request_size_boundaries(payload: dict[str, Any], kind: str) -> None:
 def test_empty_comments_and_stateless_requests(payload: dict[str, Any]) -> None:
     node(payload, "post")["comments"] = []
     client = TestClient(app)
-    assert client.post(ENDPOINT, json=payload).status_code == 200
-    payload["spots"] = [{"spot_id": 1, "post_bundles": []}]
-    result = client.post(ENDPOINT, json=payload).json()
-    assert len(result["spots"]) == 1
-    assert result["spots"][0]["result"] == {
-        "congestion_level": "UNKNOWN",
-        "report_count": 0,
-        "causes": [],
-        "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
-    }
+    first = client.post(ENDPOINT, json=payload).json()
+    payload["spot_id"] = 2
+    second = client.post(ENDPOINT, json=payload).json()
+    assert first["spot_id"] == 1
+    assert second["spot_id"] == 2
+    assert first["event_id"] != second["event_id"]
+    assert first["result"] == second["result"]
 
 
-def test_analyzer_replacement_preserves_input_and_isolates_spot_failure(
+def test_analyzer_receives_one_message_and_preserves_input(
     payload: dict[str, Any],
 ) -> None:
+    calls: list[CongestionAnalysisMessage] = []
+
     class ReplacementAnalyzer:
-        def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
-        ) -> CongestionResult:
-            assert as_of == datetime.fromisoformat("2026-10-07T15:00:00+09:00")
-            assert window == timedelta(minutes=10)
-            assert spot.post_bundles[0].title == "현재 상황"
-            assert spot.post_bundles[0].content == "  사람이 많아요.  "
-            if spot.spot_id == 1:
-                raise AnalysisError("private upstream details must not reach the client")
-            assert spot.spot_id == 3  # 빈 스팟은 분석기를 거쳐서는 안 된다.
+        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+            calls.append(message)
             return CongestionResult(congestion_level="LOW", report_count=2, causes=[])
 
     node(payload, "post")["content"] = "  사람이 많아요.  "
-    third = deepcopy(payload["spots"][0])
-    third["spot_id"] = 3
-    third["post_bundles"][0]["post_id"] = 30
-    third["post_bundles"][0]["comments"][0]["comment_id"] = 30
-    payload["spots"].append(third)
+    original = deepcopy(payload)
     app.dependency_overrides[get_analyzer] = ReplacementAnalyzer
-    try:
-        response = TestClient(app).post(ENDPOINT, json=payload)
-    finally:
-        app.dependency_overrides.pop(get_analyzer)
+    response = TestClient(app).post(ENDPOINT, json=payload)
     assert response.status_code == 200
-    assert response.json() == {
-        "request_id": "req-001",
-        "spots": [
-            {
-                "spot_id": 1,
-                "analysis_status": "FAILED",
-                "result": None,
-                "code": "ANALYSIS_FAILED",
-                "message": "analysis failed",
-            },
-            {
-                "spot_id": 2,
-                "analysis_status": "SUCCESS",
-                "result": {
-                    "congestion_level": "UNKNOWN",
-                    "report_count": 0,
-                    "causes": [],
-                    "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
-                },
-            },
-            {
-                "spot_id": 3,
-                "analysis_status": "SUCCESS",
-                "result": {
-                    "congestion_level": "LOW",
-                    "report_count": 2,
-                    "causes": [],
-                    "summary": "제보 기준 혼잡도는 한산이며, 혼잡 제보자는 2명입니다.",
-                },
-            },
-        ],
-    }
+    assert len(calls) == 1
+    assert calls[0].model_dump(mode="json") == original
+    assert payload == original
+    assert response.json()["result"]["congestion_level"] == "LOW"
 
 
-def test_three_spots_run_together_without_reordering_results(payload: dict[str, Any]) -> None:
-    spots = []
-    for spot_id in range(1, 7):
-        spot = deepcopy(payload["spots"][0])
-        spot["spot_id"] = spot_id
-        spot["post_bundles"][0]["post_id"] = 100 + spot_id
-        spot["post_bundles"][0]["comments"][0]["comment_id"] = 200 + spot_id
-        spots.append(spot)
-    payload["spots"] = spots
-    request = CongestionAnalysisRequest.model_validate(payload)
-    started: list[int] = []
-    active = 0
-    peak_active = 0
-    lock = Lock()
-    three_started = Event()
-    release = Event()
-
-    class WaitingAnalyzer:
-        def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
-        ) -> CongestionResult:
-            nonlocal active, peak_active
-            with lock:
-                active += 1
-                peak_active = max(peak_active, active)
-                started.append(spot.spot_id)
-                if len(started) == 3:
-                    three_started.set()
-            try:
-                assert release.wait(timeout=5)
-            finally:
-                with lock:
-                    active -= 1
-            return CongestionResult(congestion_level="MEDIUM", report_count=spot.spot_id, causes=[])
-
-    with ThreadPoolExecutor(max_workers=1) as caller:
-        future = caller.submit(analyze_request, request, WaitingAnalyzer())
-        try:
-            assert three_started.wait(timeout=1.5)
-            with lock:
-                assert len(started) == 3
-                assert peak_active == 3
-        finally:
-            release.set()
-        response = future.result(timeout=5)
-
-    assert [spot.spot_id for spot in response.spots] == list(range(1, 7))
-    assert [spot.result.report_count for spot in response.spots] == list(range(1, 7))
-    assert peak_active == 3
-
-
-def test_unexpected_error_stops_scheduling_new_spots(payload: dict[str, Any]) -> None:
-    spots = []
-    for spot_id in range(1, 7):
-        spot = deepcopy(payload["spots"][0])
-        spot["spot_id"] = spot_id
-        spot["post_bundles"][0]["post_id"] = 100 + spot_id
-        spot["post_bundles"][0]["comments"][0]["comment_id"] = 200 + spot_id
-        spots.append(spot)
-    payload["spots"] = spots
-    request = CongestionAnalysisRequest.model_validate(payload)
-    started: list[int] = []
-    lock = Lock()
-    first_three_started = Event()
-    release = Event()
-    siblings_finished = Event()
-    finished_count = 0
-
+def test_unexpected_error_is_not_converted_to_failed_result(
+    payload: dict[str, Any],
+) -> None:
     class UnexpectedAnalyzer:
-        def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
-        ) -> CongestionResult:
-            nonlocal finished_count
-            with lock:
-                started.append(spot.spot_id)
-                if len(started) == 3:
-                    first_three_started.set()
-            assert first_three_started.wait(timeout=5)
-            if spot.spot_id == 1:
-                raise RuntimeError("unexpected analyzer bug")
-            try:
-                assert release.wait(timeout=5)
-            finally:
-                if spot.spot_id in (2, 3):
-                    with lock:
-                        finished_count += 1
-                        if finished_count == 2:
-                            siblings_finished.set()
-            return CongestionResult(congestion_level="LOW", report_count=0, causes=[])
+        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+            raise RuntimeError("unexpected analyzer bug")
 
-    with ThreadPoolExecutor(max_workers=1) as caller:
-        future = caller.submit(analyze_request, request, UnexpectedAnalyzer())
-        try:
-            assert first_three_started.wait(timeout=1.5)
-            with pytest.raises(RuntimeError, match="unexpected analyzer bug"):
-                future.result(timeout=1.5)
-        finally:
-            release.set()
-    assert siblings_finished.wait(timeout=5)
-    assert sorted(started) == [1, 2, 3]
-
-
-def test_all_spots_fail_with_fixed_error_and_http_200(payload: dict[str, Any]) -> None:
-    class FailingAnalyzer:
-        def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
-        ) -> CongestionResult:
-            raise AnalysisError("private details")
-
-    payload["spots"] = payload["spots"][:1]
-    app.dependency_overrides[get_analyzer] = FailingAnalyzer
-    try:
-        response = TestClient(app).post(ENDPOINT, json=payload)
-    finally:
-        app.dependency_overrides.pop(get_analyzer)
-    assert response.status_code == 200
-    assert response.json()["spots"] == [
-        {
-            "spot_id": 1,
-            "analysis_status": "FAILED",
-            "result": None,
-            "code": "ANALYSIS_FAILED",
-            "message": "analysis failed",
-        },
-    ]
-
-
-def test_invalid_request_never_reaches_analyzer(payload: dict[str, Any]) -> None:
-    class UnexpectedAnalyzer:
-        def analyze(
-            self, spot: CongestionSpotInput, as_of: datetime, window: timedelta
-        ) -> CongestionResult:
-            pytest.fail("invalid input reached analyzer")
-
-    del payload["spots"][1]["post_bundles"]
-    app.dependency_overrides[get_analyzer] = UnexpectedAnalyzer
-    try:
-        assert_invalid(payload)
-    finally:
-        app.dependency_overrides.pop(get_analyzer)
+    message = CongestionAnalysisMessage.model_validate(payload)
+    with pytest.raises(RuntimeError, match="unexpected analyzer bug"):
+        analyze_message(message, UnexpectedAnalyzer())
 
 
 def test_malformed_json_uses_common_request_error() -> None:
@@ -537,3 +347,38 @@ def test_malformed_json_uses_common_request_error() -> None:
 def test_context_only_requires_boolean(payload: dict[str, Any], value: object) -> None:
     node(payload, "post")["context_only"] = value
     assert_invalid(payload)
+
+
+@pytest.mark.parametrize("value", [True, "1", 1.0, 0, 2])
+def test_schema_version_requires_strict_integer_one(payload: dict[str, Any], value: object) -> None:
+    payload["schema_version"] = value
+    assert_invalid(payload)
+
+
+@pytest.mark.parametrize("field", ["request_id", "as_of", "window_minutes", "spots"])
+def test_removed_request_fields_are_rejected(payload: dict[str, Any], field: str) -> None:
+    payload[field] = 1
+    assert_invalid(payload)
+
+
+def test_swagger_examples_match_message_and_result_models() -> None:
+    from pydantic import TypeAdapter
+
+    from app.features.congestion.models import CongestionAnalysisResult
+    from app.features.congestion.schema_examples import (
+        REQUEST_EXAMPLE,
+        RESPONSE_EXAMPLE,
+    )
+
+    message = CongestionAnalysisMessage.model_validate(REQUEST_EXAMPLE)
+    assert message.post_bundles
+    result = TypeAdapter(CongestionAnalysisResult).validate_python(RESPONSE_EXAMPLE)
+    assert result.spot_id == message.spot_id
+    assert result.window_end == message.window_end
+    schema = TestClient(app).get("/openapi.json").json()
+    operation = schema["paths"][ENDPOINT]["post"]
+    assert (
+        operation["requestBody"]["content"]["application/json"]["examples"]["default"]["value"]
+        == REQUEST_EXAMPLE
+    )
+    assert "discriminator" in operation["responses"]["200"]["content"]["application/json"]["schema"]

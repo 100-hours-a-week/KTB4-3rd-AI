@@ -81,7 +81,7 @@ class DecisionsRelevanceScorer:
                     "model": MODEL,
                     "input": json.dumps(
                         {
-                            "as_of": prepared.as_of.isoformat(),
+                            "window_end": prepared.window_end.isoformat(),
                             "post_bundle": post.model_dump(mode="json"),
                         },
                         ensure_ascii=False,

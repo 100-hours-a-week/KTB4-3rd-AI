@@ -19,8 +19,7 @@ def model_input() -> SpotLLMInput:
         payload=json.dumps(
             {
                 "spot_id": 7,
-                "as_of": "2026-10-12T12:00:00+09:00",
-                "window_start": "2026-10-12T11:00:00+09:00",
+                "window_end": "2026-10-12T12:00:00+09:00",
                 "targets": [
                     {"signal_type": "comment", "signal_id": 3},
                     {"signal_type": "post", "signal_id": 3},
@@ -75,6 +74,9 @@ def test_one_call_matches_reordered_results_to_original_targets(model_input: Spo
     result = assess_spot(model_input, complete)
 
     assert len(prompts) == 1
+    assert "현재 기준은 입력의 window_end" in prompts[0]
+    assert "as_of" not in prompts[0]
+    assert "window_start" not in prompts[0]
     assert json.loads(prompts[0].split("입력 JSON:\n", 1)[1]) == json.loads(model_input.payload)
     assert [
         (signal.author_key, signal.created_at.isoformat(), signal.congestion_level, signal.causes)

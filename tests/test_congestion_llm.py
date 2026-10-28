@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Callable, Iterator
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import pytest
@@ -11,13 +11,11 @@ from fastapi.testclient import TestClient
 from app.core.exceptions import ModelNotReady, UpstreamError
 from app.features.congestion import extractor
 from app.features.congestion.extractor import ModelOutputInvalid, assess_bundle
-from app.features.congestion.models import CongestionAnalysisRequest
+from app.features.congestion.models import CongestionAnalysisMessage
 from app.features.congestion.preprocessor import PreparedSpot
 from app.features.congestion.relevance import RelevancePolicy
 from app.features.congestion.service import LLMCongestionAnalyzer, get_analyzer
 from app.main import app
-
-AS_OF = "2026-10-08T12:00:00+09:00"
 
 
 def test_congestion_uses_dedicated_model_slot(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -32,35 +30,31 @@ def test_congestion_uses_dedicated_model_slot(monkeypatch: pytest.MonkeyPatch) -
 
 def request_data() -> dict[str, Any]:
     return {
-        "request_id": "llm-1",
-        "as_of": AS_OF,
-        "window_minutes": 10,
-        "spots": [
+        "event_id": "llm-1",
+        "schema_version": 1,
+        "window_end": "2026-10-08T12:00:00+09:00",
+        "spot_id": 1,
+        "post_bundles": [
             {
-                "spot_id": 1,
-                "post_bundles": [
+                "post_id": 10,
+                "context_only": False,
+                "title": "오래된 원글",
+                "content": "어제는 한산했어요.",
+                "author_key": "old-author",
+                "created_at": "2026-10-08T11:00:00+09:00",
+                "comments": [
                     {
-                        "post_id": 10,
-                        "context_only": False,
-                        "title": "오래된 원글",
-                        "content": "어제는 한산했어요.",
-                        "author_key": "old-author",
-                        "created_at": "2026-10-08T11:00:00+09:00",
-                        "comments": [
-                            {
-                                "comment_id": 20,
-                                "content": "지금 사람이 많아요. 행사 때문이에요.",
-                                "author_key": "current-author",
-                                "created_at": "2026-10-08T11:55:00+09:00",
-                            },
-                            {
-                                "comment_id": 21,
-                                "content": "아까는 한산했어요.",
-                                "author_key": "old-commenter",
-                                "created_at": "2026-10-08T11:10:00+09:00",
-                            },
-                        ],
-                    }
+                        "comment_id": 20,
+                        "content": "지금 사람이 많아요. 행사 때문이에요.",
+                        "author_key": "current-author",
+                        "created_at": "2026-10-08T11:55:00+09:00",
+                    },
+                    {
+                        "comment_id": 21,
+                        "content": "아까는 한산했어요.",
+                        "author_key": "old-commenter",
+                        "created_at": "2026-10-08T11:10:00+09:00",
+                    },
                 ],
             }
         ],
@@ -72,7 +66,7 @@ def decision(signals: list[dict[str, Any]]) -> str:
 
 
 def test_old_parent_and_comment_are_context_only() -> None:
-    request = CongestionAnalysisRequest.model_validate(request_data())
+    request = CongestionAnalysisMessage.model_validate(request_data())
     prompts: list[dict[str, Any]] = []
 
     def complete(prompt: str) -> str:
@@ -88,7 +82,7 @@ def test_old_parent_and_comment_are_context_only() -> None:
             ]
         )
 
-    signals = assess_bundle(request.spots[0].post_bundles[0], request.as_of, complete)
+    signals = assess_bundle(request.post_bundles[0], request.window_end, complete)
     assert len(prompts) == 1
     assert prompts[0]["post"]["post_id"] == 10
     assert [comment["comment_id"] for comment in prompts[0]["comments"]] == [20, 21]
@@ -159,15 +153,15 @@ def test_old_parent_and_comment_are_context_only() -> None:
     ],
 )
 def test_invalid_model_output_is_rejected(raw: str) -> None:
-    request = CongestionAnalysisRequest.model_validate(request_data())
+    request = CongestionAnalysisMessage.model_validate(request_data())
     with pytest.raises(ModelOutputInvalid):
-        assess_bundle(request.spots[0].post_bundles[0], request.as_of, lambda _: raw)
+        assess_bundle(request.post_bundles[0], request.window_end, lambda _: raw)
 
 
 def test_current_post_and_comment_are_both_required() -> None:
     data = request_data()
-    data["spots"][0]["post_bundles"][0]["created_at"] = "2026-10-08T11:50:00+09:00"
-    request = CongestionAnalysisRequest.model_validate(data)
+    data["post_bundles"][0]["created_at"] = "2026-10-08T11:50:00+09:00"
+    request = CongestionAnalysisMessage.model_validate(data)
     raw = decision(
         [
             {
@@ -179,7 +173,7 @@ def test_current_post_and_comment_are_both_required() -> None:
         ]
     )
     with pytest.raises(ModelOutputInvalid):
-        assess_bundle(request.spots[0].post_bundles[0], request.as_of, lambda _: raw)
+        assess_bundle(request.post_bundles[0], request.window_end, lambda _: raw)
 
 
 def configured_analyzer(complete: Callable[[str], str]) -> LLMCongestionAnalyzer:
@@ -191,7 +185,7 @@ def configured_analyzer(complete: Callable[[str], str]) -> LLMCongestionAnalyzer
 
 def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
     data = request_data()
-    spot = data["spots"][0]
+    spot = data
     old = dict(spot["post_bundles"][0], post_id=11, comments=[])
     current = dict(
         spot["post_bundles"][0],
@@ -203,7 +197,7 @@ def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
         comments=[],
     )
     spot["post_bundles"].extend([old, current])
-    request = CongestionAnalysisRequest.model_validate(data)
+    request = CongestionAnalysisMessage.model_validate(data)
     called: list[dict[str, Any]] = []
 
     def complete(prompt: str) -> str:
@@ -221,9 +215,7 @@ def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
             ]
         )
 
-    result = configured_analyzer(complete).analyze(
-        request.spots[0], request.as_of, timedelta(minutes=request.window_minutes)
-    )
+    result = configured_analyzer(complete).analyze(request)
     assert len(called) == 1
     assert [bundle["post_id"] for bundle in called[0]["post_bundles"]] == [10, 11, 12]
     assert called[0]["targets"] == [
@@ -261,41 +253,32 @@ def use_mock_llm() -> Iterator[list[str]]:
     app.dependency_overrides.pop(get_analyzer, None)
 
 
-def test_http_uses_real_analyzer_pipeline_with_injected_model(use_mock_llm: list[str]) -> None:
+def test_http_uses_real_analyzer_pipeline_with_injected_model(
+    use_mock_llm: list[str],
+) -> None:
     data = request_data()
-    data["spots"].append({"spot_id": 2, "post_bundles": []})
     response = TestClient(app).post("/congestion-analyses", json=data)
     assert response.status_code == 200
     assert len(use_mock_llm) == 1
-    assert response.json()["spots"] == [
-        {
-            "spot_id": 1,
-            "analysis_status": "SUCCESS",
-            "result": {
-                "congestion_level": "MEDIUM",
-                "report_count": 1,
-                "causes": [{"cause_code": "EVENT", "report_count": 1}],
-                "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. "
-                "제보된 원인은 행사·공연·경기(1명)입니다.",
-            },
+    assert {
+        key: value
+        for key, value in response.json().items()
+        if key not in {"event_id", "schema_version", "window_end", "analyzed_at"}
+    } == {
+        "spot_id": 1,
+        "analysis_status": "SUCCESS",
+        "result": {
+            "congestion_level": "MEDIUM",
+            "report_count": 1,
+            "causes": [{"cause_code": "EVENT", "report_count": 1}],
+            "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. 제보된 원인은 행사·공연·경기(1명)입니다.",
         },
-        {
-            "spot_id": 2,
-            "analysis_status": "SUCCESS",
-            "result": {
-                "congestion_level": "UNKNOWN",
-                "report_count": 0,
-                "causes": [],
-                "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
-            },
-        },
-    ]
+    }
 
 
 @pytest.mark.parametrize("error", [ModelNotReady(), UpstreamError(), ModelOutputInvalid("bad")])
-def test_expected_model_error_fails_only_its_spot(error: Exception) -> None:
+def test_expected_model_error_returns_failed_message(error: Exception) -> None:
     data = request_data()
-    data["spots"].append({"spot_id": 2, "post_bundles": []})
 
     def fail(_prompt: str) -> str:
         raise error
@@ -306,44 +289,21 @@ def test_expected_model_error_fails_only_its_spot(error: Exception) -> None:
     finally:
         app.dependency_overrides.pop(get_analyzer, None)
     assert response.status_code == 200
-    assert response.json()["spots"] == [
-        {
-            "spot_id": 1,
-            "analysis_status": "FAILED",
-            "result": None,
-            "code": "ANALYSIS_FAILED",
-            "message": "analysis failed",
-        },
-        {
-            "spot_id": 2,
-            "analysis_status": "SUCCESS",
-            "result": {
-                "congestion_level": "UNKNOWN",
-                "report_count": 0,
-                "causes": [],
-                "summary": "혼잡 단계를 판단할 유효 제보가 없습니다.",
-            },
-        },
-    ]
+    assert {
+        key: value
+        for key, value in response.json().items()
+        if key not in {"event_id", "schema_version", "window_end", "analyzed_at"}
+    } == {
+        "spot_id": 1,
+        "analysis_status": "FAILED",
+        "result": None,
+        "code": "ANALYSIS_FAILED",
+        "message": "analysis failed",
+    }
 
 
-def test_failed_spot_does_not_retry_but_next_spot_continues() -> None:
+def test_failed_message_does_not_retry_and_next_request_continues() -> None:
     data = request_data()
-    first_spot = data["spots"][0]
-    first_spot["post_bundles"].append(
-        dict(
-            first_spot["post_bundles"][0],
-            post_id=11,
-            created_at="2026-10-08T11:59:00+09:00",
-            comments=[],
-        )
-    )
-    second_bundle = dict(
-        first_spot["post_bundles"][0],
-        post_id=12,
-        comments=[dict(first_spot["post_bundles"][0]["comments"][0], comment_id=22)],
-    )
-    data["spots"].append({"spot_id": 2, "post_bundles": [second_bundle]})
     called: list[int] = []
 
     def complete(prompt: str) -> str:
@@ -355,7 +315,7 @@ def test_failed_spot_does_not_retry_but_next_spot_continues() -> None:
             [
                 {
                     **target,
-                    "congestion_level": "MEDIUM" if target["signal_id"] == 22 else None,
+                    "congestion_level": "MEDIUM" if target["signal_id"] == 20 else None,
                     "causes": [],
                 }
                 for target in payload["targets"]
@@ -364,13 +324,16 @@ def test_failed_spot_does_not_retry_but_next_spot_continues() -> None:
 
     app.dependency_overrides[get_analyzer] = lambda: configured_analyzer(complete)
     try:
-        response = TestClient(app).post("/congestion-analyses", json=data)
+        client = TestClient(app)
+        failed = client.post("/congestion-analyses", json=data)
+        data["spot_id"] = 2
+        successful = client.post("/congestion-analyses", json=data)
     finally:
         app.dependency_overrides.pop(get_analyzer, None)
-    assert response.status_code == 200
-    assert sorted(called) == [1, 2]
-    assert response.json()["spots"][0]["analysis_status"] == "FAILED"
-    assert response.json()["spots"][1]["result"] == {
+    assert failed.status_code == successful.status_code == 200
+    assert called == [1, 2]
+    assert failed.json()["analysis_status"] == "FAILED"
+    assert successful.json()["result"] == {
         "congestion_level": "MEDIUM",
         "report_count": 1,
         "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],

@@ -10,7 +10,7 @@ from app.features.congestion.preprocessor import prepare_spot
 from app.features.congestion.relevance import RelevancePolicy, classify_spot
 from app.features.congestion.spot_input import build_spot_input
 
-AS_OF = datetime.fromisoformat("2026-10-12T12:00:00+09:00")
+WINDOW_END = datetime.fromisoformat("2026-10-12T12:00:00+09:00")
 POLICY = RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8)
 
 
@@ -86,7 +86,7 @@ def spot() -> CongestionSpotInput:
 def test_selected_signals_from_multiple_bundles_share_one_spot_input(
     spot: CongestionSpotInput,
 ) -> None:
-    prepared = prepare_spot(spot, AS_OF)
+    prepared = prepare_spot(spot, WINDOW_END)
     classified = classify_spot(
         prepared,
         lambda _: {
@@ -107,8 +107,9 @@ def test_selected_signals_from_multiple_bundles_share_one_spot_input(
     assert result is not None
     payload = json.loads(result.payload)
     assert payload["spot_id"] == 7
-    assert payload["as_of"] == "2026-10-12T12:00:00+09:00"
+    assert payload["window_end"] == "2026-10-12T12:00:00+09:00"
     assert "window_start" not in payload
+    assert "as_of" not in payload
     assert payload["targets"] == [
         {"signal_type": "comment", "signal_id": 3},
         {"signal_type": "comment", "signal_id": 5},
@@ -146,7 +147,7 @@ def test_no_selected_signals_produce_no_llm_input(spot: CongestionSpotInput, cas
         spot.post_bundles = []
     elif case == "context_only":
         spot.post_bundles = [spot.post_bundles[0].model_copy(update={"comments": []})]
-    prepared = prepare_spot(spot, AS_OF)
+    prepared = prepare_spot(spot, WINDOW_END)
     classified = classify_spot(
         prepared,
         lambda item: {(target.signal_type, target.signal_id): 0.0 for target in item.candidates},
@@ -157,7 +158,7 @@ def test_no_selected_signals_produce_no_llm_input(spot: CongestionSpotInput, cas
 
 
 def test_built_payload_and_target_metadata_are_snapshots(spot: CongestionSpotInput) -> None:
-    prepared = prepare_spot(spot, AS_OF)
+    prepared = prepare_spot(spot, WINDOW_END)
     classified = classify_spot(
         prepared,
         lambda item: {(target.signal_type, target.signal_id): 0.9 for target in item.candidates},

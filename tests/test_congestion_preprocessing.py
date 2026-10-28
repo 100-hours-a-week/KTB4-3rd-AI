@@ -7,7 +7,7 @@ import pytest
 from app.features.congestion import preprocessor
 from app.features.congestion.models import CongestionSpotInput
 
-AS_OF = datetime.fromisoformat("2026-10-12T12:00:00+09:00")
+WINDOW_END = datetime.fromisoformat("2026-10-12T12:00:00+09:00")
 
 
 @pytest.fixture
@@ -93,7 +93,8 @@ def spot() -> CongestionSpotInput:
 
 def test_comment_candidate_keeps_parent_and_original_metadata(spot: CongestionSpotInput) -> None:
     original = spot.model_dump()
-    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    prepared = preprocessor.prepare_spot(spot, WINDOW_END)
+    assert prepared.window_end == WINDOW_END
     comment = prepared.candidates[1]
 
     assert (comment.signal_type, comment.signal_id, comment.post_id) == ("comment", 2, 1)
@@ -109,7 +110,7 @@ def test_comment_candidate_keeps_parent_and_original_metadata(spot: CongestionSp
 def test_post_and_comment_with_same_numeric_id_remain_separate_candidates(
     spot: CongestionSpotInput,
 ) -> None:
-    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    prepared = preprocessor.prepare_spot(spot, WINDOW_END)
 
     assert [
         candidate.signal_type for candidate in prepared.candidates if candidate.signal_id == 3
@@ -121,7 +122,7 @@ def test_post_and_comment_with_same_numeric_id_remain_separate_candidates(
 
 
 def test_repeated_authors_are_kept_for_individual_judgment(spot: CongestionSpotInput) -> None:
-    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    prepared = preprocessor.prepare_spot(spot, WINDOW_END)
 
     assert [
         candidate.signal_id for candidate in prepared.candidates if candidate.author_key == "repeat"
@@ -138,7 +139,7 @@ def test_spot_without_candidates_has_no_context(
         if context_only
         else [],
     )
-    prepared = preprocessor.prepare_spot(empty, AS_OF)
+    prepared = preprocessor.prepare_spot(empty, WINDOW_END)
 
     assert prepared.candidates == ()
     assert prepared.post_bundles == ()
@@ -148,7 +149,7 @@ def test_context_only_post_is_context_but_its_comments_are_candidates(
     spot: CongestionSpotInput,
 ) -> None:
     spot.post_bundles = [spot.post_bundles[0]]
-    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    prepared = preprocessor.prepare_spot(spot, WINDOW_END)
     assert [(item.signal_type, item.signal_id) for item in prepared.candidates] == [
         ("comment", 1), ("comment", 2), ("comment", 3), ("comment", 4),
     ]
@@ -156,8 +157,8 @@ def test_context_only_post_is_context_but_its_comments_are_candidates(
 
 
 def test_very_old_comment_is_still_a_candidate(spot: CongestionSpotInput) -> None:
-    spot.post_bundles[0].comments[0].created_at = AS_OF - timedelta(days=365)
-    prepared = preprocessor.prepare_spot(spot, AS_OF)
+    spot.post_bundles[0].comments[0].created_at = WINDOW_END - timedelta(days=365)
+    prepared = preprocessor.prepare_spot(spot, WINDOW_END)
     assert any(
         item.signal_type == "comment" and item.signal_id == 1
         for item in prepared.candidates

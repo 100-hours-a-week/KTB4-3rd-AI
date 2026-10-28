@@ -29,7 +29,7 @@ def build_spot_input(classified: ClassifiedSpot) -> SpotLLMInput | None:
     post_ids = {target.post_id for target in targets}
     payload = {
         "spot_id": prepared.spot_id,
-        "as_of": prepared.as_of.isoformat(),
+        "window_end": prepared.window_end.isoformat(),
         "targets": [
             {"signal_type": target.signal_type, "signal_id": target.signal_id}
             for target in targets
