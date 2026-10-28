@@ -18,13 +18,12 @@ from app.features.congestion.service import LLMCongestionAnalyzer, get_analyzer
 from app.main import app
 
 
-def test_congestion_uses_dedicated_model_slot(monkeypatch: pytest.MonkeyPatch) -> None:
-    def complete(name: str, *, prompt: str) -> str:
-        if name != "api_2":
-            raise ValueError("wrong model slot")
+def test_congestion_uses_model_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    def complete(prompt: str) -> str:
+        assert prompt == "prompt"
         return '{"signals": []}'
 
-    monkeypatch.setattr(extractor, "llm", complete)
+    monkeypatch.setattr(extractor.model_client, "complete_json", complete)
     assert extractor.call_api_model("prompt") == '{"signals": []}'
 
 

@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
-from ...llm import llm
+from . import model_client
 from .aggregator import Stage
 from .models import CauseCode, CongestionPostBundleInput, PositiveId
 from .preprocessor import is_in_window
@@ -128,7 +128,7 @@ PROMPT = BUNDLE_INSTRUCTIONS + "\n" + JUDGMENT_RULES + "\n입력 JSON:\n"
 
 
 def call_api_model(prompt: str) -> str:
-    output = llm("api_2", prompt=prompt)
+    output = model_client.complete_json(prompt)
     if not isinstance(output, str):
         raise ModelOutputInvalid("api model did not return text")
     return output

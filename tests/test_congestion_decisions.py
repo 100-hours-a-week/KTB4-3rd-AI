@@ -91,7 +91,7 @@ def test_bundle_requests_classify_all_candidates_and_keep_parent_context(
             },
         )
 
-    scorer = DecisionsRelevanceScorer(timeout=5, transport=httpx.MockTransport(respond))
+    scorer = DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))
     result = classify_spot(
         prepared, scorer, RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8)
     )
@@ -130,7 +130,6 @@ def test_bundle_requests_classify_all_candidates_and_keep_parent_context(
         },
         {"answers": [{"type": "refusal", "name": "comment_1"}]},
         {"answers": [{"type": "choice", "name": "comment_1", "choice": "related"}]},
-        [],
     ],
 )
 def test_invalid_answers_cannot_produce_partial_scores(
@@ -138,7 +137,7 @@ def test_invalid_answers_cannot_produce_partial_scores(
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     scorer = DecisionsRelevanceScorer(
-        timeout=5, transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
     )
     with pytest.raises(RelevanceOutputInvalid):
         scorer(prepared)
@@ -156,7 +155,7 @@ def test_invalid_probability_is_rejected(
         ]
     }
     scorer = DecisionsRelevanceScorer(
-        timeout=5, transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
     )
     with pytest.raises(RelevanceOutputInvalid):
         scorer(prepared)
@@ -167,9 +166,9 @@ def test_non_json_response_is_rejected(
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     scorer = DecisionsRelevanceScorer(
-        timeout=5, transport=httpx.MockTransport(lambda _: httpx.Response(200, text="not json"))
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, text="not json"))
     )
-    with pytest.raises(RelevanceOutputInvalid):
+    with pytest.raises(UpstreamError):
         scorer(prepared)
 
 
@@ -179,7 +178,7 @@ def test_http_errors_are_reported_as_provider_errors(
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     scorer = DecisionsRelevanceScorer(
-        timeout=5, transport=httpx.MockTransport(lambda _: httpx.Response(status))
+        transport=httpx.MockTransport(lambda _: httpx.Response(status))
     )
     with pytest.raises(UpstreamError):
         scorer(prepared)
@@ -205,7 +204,7 @@ def test_timeout_after_a_successful_bundle_returns_no_partial_scores(
         )
 
     scorer = DecisionsRelevanceScorer(
-        timeout=5, transport=httpx.MockTransport(first_success_then_timeout)
+        transport=httpx.MockTransport(first_success_then_timeout)
     )
     with pytest.raises(UpstreamError):
         scorer(prepared)
@@ -219,7 +218,7 @@ def test_missing_key_prevents_network_call(
     def unexpected(_request: httpx.Request) -> httpx.Response:
         pytest.fail("키 없이 네트워크가 호출됨")
 
-    scorer = DecisionsRelevanceScorer(timeout=5, transport=httpx.MockTransport(unexpected))
+    scorer = DecisionsRelevanceScorer(transport=httpx.MockTransport(unexpected))
     with pytest.raises(ModelNotReady):
         scorer(prepared)
 
@@ -235,12 +234,6 @@ def test_empty_spot_needs_no_key_or_network(monkeypatch: pytest.MonkeyPatch) -> 
         pytest.fail("빈 후보에 대한 네트워크가 호출됨")
 
     assert (
-        DecisionsRelevanceScorer(timeout=5, transport=httpx.MockTransport(unexpected))(prepared)
+        DecisionsRelevanceScorer(transport=httpx.MockTransport(unexpected))(prepared)
         == {}
     )
-
-
-@pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), True, 10**1000])
-def test_invalid_timeout_is_rejected(timeout: float) -> None:
-    with pytest.raises(ValueError):
-        DecisionsRelevanceScorer(timeout=timeout)

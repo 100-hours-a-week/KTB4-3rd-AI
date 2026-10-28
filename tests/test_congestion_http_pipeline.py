@@ -54,7 +54,7 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
         return json.dumps(case["model_output"])
 
     analyzer = LLMCongestionAnalyzer(
-        score=DecisionsRelevanceScorer(timeout=5, transport=httpx.MockTransport(respond)),
+        score=DecisionsRelevanceScorer(transport=httpx.MockTransport(respond)),
         policy=RelevancePolicy(0.2, 0.8),
         complete=complete,
     )
@@ -102,7 +102,6 @@ def test_default_analyzer_uses_congestion_module_settings(
     scorer, policy = LLMCongestionAnalyzer()._configured_scorer()
     assert policy == RelevancePolicy(0.2, 0.8)
     assert isinstance(scorer, DecisionsRelevanceScorer)
-    assert scorer._timeout == 30.0
 
 
 def test_missing_model_key_returns_failed_message(

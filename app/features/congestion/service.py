@@ -8,7 +8,7 @@ from uuid import uuid4
 from ...core.exceptions import ModelNotReady, UpstreamError
 from ...core.logging import get_logger
 from .aggregator import aggregate_signals
-from .config import DECISIONS_TIMEOUT_SECONDS, RELEVANCE_POLICY
+from .config import RELEVANCE_POLICY
 from .decisions import DecisionsRelevanceScorer
 from .extractor import ModelOutputInvalid, call_api_model
 from .models import (
@@ -89,7 +89,7 @@ class LLMCongestionAnalyzer:
     def _configured_scorer(self) -> tuple[RelevanceScorer, RelevancePolicy]:
         if self._score is not None and self._policy is not None:
             return self._score, self._policy
-        return DecisionsRelevanceScorer(timeout=DECISIONS_TIMEOUT_SECONDS), RELEVANCE_POLICY
+        return DecisionsRelevanceScorer(), RELEVANCE_POLICY
 
 
 def get_analyzer() -> CongestionAnalyzer:
