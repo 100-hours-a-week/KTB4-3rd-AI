@@ -2,7 +2,6 @@
 
 import json
 from collections.abc import Callable, Iterator
-from datetime import datetime
 from typing import Any
 
 import pytest
@@ -10,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.core.exceptions import ModelNotReady, UpstreamError
 from app.features.congestion import extractor
-from app.features.congestion.extractor import ModelOutputInvalid, assess_bundle
+from app.features.congestion.extractor import ModelOutputInvalid
 from app.features.congestion.models import CongestionAnalysisMessage
 from app.features.congestion.preprocessor import PreparedSpot
 from app.features.congestion.relevance import RelevancePolicy
@@ -62,117 +61,6 @@ def request_data() -> dict[str, Any]:
 
 def decision(signals: list[dict[str, Any]]) -> str:
     return json.dumps({"signals": signals})
-
-
-def test_old_parent_and_comment_are_context_only() -> None:
-    request = CongestionAnalysisMessage.model_validate(request_data())
-    prompts: list[dict[str, Any]] = []
-
-    def complete(prompt: str) -> str:
-        prompts.append(json.loads(prompt.split("입력 JSON:\n", 1)[1]))
-        return decision(
-            [
-                {
-                    "signal_type": "comment",
-                    "signal_id": 20,
-                    "congestion_level": "MEDIUM",
-                    "causes": ["EVENT"],
-                }
-            ]
-        )
-
-    signals = assess_bundle(request.post_bundles[0], request.window_end, complete)
-    assert len(prompts) == 1
-    assert prompts[0]["post"]["post_id"] == 10
-    assert [comment["comment_id"] for comment in prompts[0]["comments"]] == [20, 21]
-    assert prompts[0]["targets"] == [{"signal_type": "comment", "signal_id": 20}]
-    assert len(signals) == 1
-    assert signals[0].author_key == "current-author"
-    assert signals[0].created_at == datetime.fromisoformat("2026-10-08T11:55:00+09:00")
-    assert signals[0].congestion_level == "MEDIUM"
-    assert signals[0].causes == frozenset({"EVENT"})
-
-
-@pytest.mark.parametrize(
-    "raw",
-    [
-        "not json",
-        decision([]),
-        decision(
-            [
-                {
-                    "signal_type": "post",
-                    "signal_id": 10,
-                    "congestion_level": "HIGH",
-                    "causes": [],
-                }
-            ]
-        ),
-        decision(
-            [
-                {
-                    "signal_type": "comment",
-                    "signal_id": 20,
-                    "congestion_level": "UNKNOWN",
-                    "causes": [],
-                }
-            ]
-        ),
-        decision(
-            [
-                {
-                    "signal_type": "comment",
-                    "signal_id": 20,
-                    "congestion_level": None,
-                    "causes": ["UNKNOWN"],
-                }
-            ]
-        ),
-        decision(
-            [
-                {
-                    "signal_type": "comment",
-                    "signal_id": 20,
-                    "congestion_level": None,
-                    "causes": ["EVENT", "EVENT"],
-                }
-            ]
-        ),
-        decision(
-            [
-                {
-                    "signal_type": "comment",
-                    "signal_id": 20,
-                    "congestion_level": None,
-                    "causes": [],
-                    "unexpected": True,
-                }
-            ]
-        ),
-    ],
-)
-def test_invalid_model_output_is_rejected(raw: str) -> None:
-    request = CongestionAnalysisMessage.model_validate(request_data())
-    with pytest.raises(ModelOutputInvalid):
-        assess_bundle(request.post_bundles[0], request.window_end, lambda _: raw)
-
-
-def test_current_post_and_comment_are_both_required() -> None:
-    data = request_data()
-    data["post_bundles"][0]["created_at"] = "2026-10-08T11:50:00+09:00"
-    request = CongestionAnalysisMessage.model_validate(data)
-    raw = decision(
-        [
-            {
-                "signal_type": "comment",
-                "signal_id": 20,
-                "congestion_level": None,
-                "causes": [],
-            }
-        ]
-    )
-    with pytest.raises(ModelOutputInvalid):
-        assess_bundle(request.post_bundles[0], request.window_end, lambda _: raw)
 
 
 def configured_analyzer(complete: Callable[[str], str]) -> LLMCongestionAnalyzer:

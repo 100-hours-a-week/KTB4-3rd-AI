@@ -1,4 +1,4 @@
-"""이미 판정된 신호의 스팟 집계와 기존 묶음 선정 규칙."""
+"""이미 판정된 신호의 스팟 집계 규칙을 확인한다."""
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -6,11 +6,7 @@ from itertools import count
 
 import pytest
 
-from app.features.congestion import aggregator, preprocessor
-from app.features.congestion.models import (
-    CongestionPostBundleInput,
-    CongestionSpotInput,
-)
+from app.features.congestion import aggregator
 
 AS_OF = datetime(2026, 10, 7, 6, 0, tzinfo=timezone.utc)
 CUTOFF = AS_OF - timedelta(minutes=20)
@@ -34,36 +30,6 @@ def aggregate(*signals: Judgment) -> dict[str, object]:
     aggregate_signals = getattr(aggregator, "aggregate_signals", None)
     assert callable(aggregate_signals), "the aggregation function is missing"
     return aggregate_signals(signals).model_dump()
-
-
-def select(spot: CongestionSpotInput) -> list[CongestionPostBundleInput]:
-    select_bundles = getattr(preprocessor, "select_analyzable_bundles", None)
-    assert callable(select_bundles), "the bundle selection function is missing"
-    return select_bundles(spot, AS_OF)
-
-
-def bundle(
-    post_id: int, created_at: datetime, comment_times: list[datetime]
-) -> CongestionPostBundleInput:
-    return CongestionPostBundleInput.model_validate(
-        {
-            "post_id": post_id,
-            "context_only": False,
-            "title": "현장 상황",
-            "content": "게시글",
-            "author_key": f"author-{post_id}",
-            "created_at": created_at.isoformat(),
-            "comments": [
-                {
-                    "comment_id": post_id * 10 + i,
-                    "content": "댓글",
-                    "author_key": f"commenter-{i}",
-                    "created_at": comment_time.isoformat(),
-                }
-                for i, comment_time in enumerate(comment_times)
-            ],
-        }
-    )
 
 
 @pytest.mark.parametrize(
@@ -252,20 +218,3 @@ def test_each_cause_counts_distinct_authors() -> None:
 def test_unknown_is_a_result_fallback_not_an_individual_vote(signal: Judgment) -> None:
     with pytest.raises(ValueError, match="UNKNOWN"):
         aggregate(signal)
-
-
-def test_old_parent_without_current_comment_is_not_analyzed() -> None:
-    old = bundle(1, CUTOFF, [CUTOFF])
-    assert select(CongestionSpotInput(spot_id=1, post_bundles=[old])) == []
-
-
-def test_old_parent_with_current_comment_keeps_full_comment_context() -> None:
-    old = bundle(1, CUTOFF, [CUTOFF, AS_OF])
-    selected = select(CongestionSpotInput(spot_id=1, post_bundles=[old]))
-    assert selected == [old]
-    assert [comment.comment_id for comment in selected[0].comments] == [10, 11]
-
-
-def test_current_parent_without_comments_is_analyzed() -> None:
-    recent = bundle(1, CUTOFF + timedelta(seconds=1), [])
-    assert select(CongestionSpotInput(spot_id=1, post_bundles=[recent])) == [recent]

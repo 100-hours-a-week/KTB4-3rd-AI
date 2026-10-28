@@ -1,12 +1,10 @@
 """스팟의 분류 후보와 해석에 필요한 원문 문맥을 준비한다."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Literal
 
 from .models import CongestionPostBundleInput, CongestionSpotInput
-
-WINDOW = timedelta(minutes=20)
 
 
 @dataclass(frozen=True)
@@ -30,12 +28,6 @@ class PreparedSpot:
     window_end: datetime
     post_bundles: tuple[CongestionPostBundleInput, ...]
     candidates: tuple[CandidateSignal, ...]
-
-
-def is_in_window(
-    created_at: datetime, as_of: datetime, window: timedelta = WINDOW
-) -> bool:
-    return as_of - window < created_at <= as_of
 
 
 def prepare_spot(spot: CongestionSpotInput, window_end: datetime) -> PreparedSpot:
@@ -82,15 +74,3 @@ def prepare_spot(spot: CongestionSpotInput, window_end: datetime) -> PreparedSpo
         post_bundles=tuple(post_bundles),
         candidates=tuple(candidates),
     )
-
-
-def select_analyzable_bundles(
-    spot: CongestionSpotInput, as_of: datetime
-) -> list[CongestionPostBundleInput]:
-    """기존 묶음별 분석 경로에서 최근 제보가 있는 묶음의 원문을 남긴다."""
-    return [
-        post
-        for post in spot.post_bundles
-        if is_in_window(post.created_at, as_of)
-        or any(is_in_window(comment.created_at, as_of) for comment in post.comments)
-    ]
