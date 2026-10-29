@@ -51,6 +51,9 @@ def build_meter_provider(env: Mapping[str, str] = os.environ) -> MeterProvider |
         "service.name": env.get("OTLP_SERVICE_NAME", "fastapi"),
         "service.instance.id": service_instance_id(env),
         "deployment.environment": env.get("STAGE", "dev"),
+        # pull 라벨과 맞춘다 (Prometheus가 stage·service 라벨로 승격한다).
+        "stage": env.get("STAGE", "dev"),
+        "service": env.get("OTLP_SERVICE_NAME", "fastapi"),
     }
     namespace = env.get("OTLP_SERVICE_NAMESPACE", "").strip()
     if namespace:
