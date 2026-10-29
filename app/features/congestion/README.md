@@ -14,7 +14,6 @@ import json
 
 from pydantic import ValidationError
 
-from app.core.exceptions import AppError
 from app.features.congestion.models import CongestionAnalysisMessage
 from app.features.congestion.schema_examples import REQUEST_EXAMPLE
 from app.features.congestion.service import (
@@ -34,8 +33,9 @@ except ValidationError:
 
 try:
     result = analyze_message(message, analyzer)
-except AppError:
-    # 최종 실패라면 실패 결과를 발행하고 원본도 기록용 DLT에 남긴다.
+except Exception:
+    # 단계별 실패(AppError)와 예상 밖 예외 모두 실패 결과를 발행하고 원본도 기록용 DLT에 남긴다.
+    # 원인은 analyze_message가 같은 request_id로 남긴 로그에 있다.
     result = failure_result(message)
 
 result_key = str(result.spot_id)
@@ -70,6 +70,9 @@ result = await asyncio.to_thread(analyze_message, message, analyzer)
 | 성공 결과 | `analysis_status: SUCCESS`, `result`: `congestion_level`(`LOW`/`MEDIUM`/`HIGH`/`UNKNOWN`), `report_count`, `causes`(`cause_code`·`report_count` 목록), `summary` |
 | 결과 공통 | 새 UUID4 `event_id`(요청과 다름), `schema_version: 1`, 요청의 `spot_id`·`window_end`, UTC 완료 시각 `analyzed_at` |
 
+`event_id`는 UUID처럼 영숫자와 `._-`만 쓴 64자 이하 값을 보낸다. 이 형식이 아니면 분석은 하지만
+로그에는 `event_id=-`로 남고 `request_id`는 임의 값이 되어, 로그로 요청을 찾기 어렵다.
+
 `context_only`는 필수 strict bool이다. `true`인 원글은 문맥으로만 쓰고 해당 댓글은
 판정 후보로 남긴다. 같은 작성자는 원글·댓글에 같은 `author_key`를 보내야 한다.
 구간 데이터 선정은 Spring BE가 맡는다. AI는 구간 필터나 미래 작성 시각 검사를 하지 않는다.
@@ -87,15 +90,16 @@ result = await asyncio.to_thread(analyze_message, message, analyzer)
 | LLM 판정 호출 | `UPSTREAM_FAILED` / 502 | 외부 호출 또는 응답 형식 실패 | 일시적 호출 실패일 때만 검토. 인증·응답 형식 오류는 제외 |
 | 모델 준비 | `MODEL_NOT_READY` / 503 | `OPENAI_API_KEY_2`가 없거나 비어 있음 | 키 주입 문제를 해결한 뒤, 다음 구간 전에 끝날 때만 검토 |
 | 판정 출력 검증 | `CONGESTION_PARSE_FAILED` / 502 | JSON·값 형식 오류 또는 대상 ID 불일치 | 안 함 |
-| 예상 밖 예외 | `INTERNAL` / 500 | HTTP에서 변환되는 코드. consumer에는 원래 예외가 전달됨 | 자동 반복 대신 원인 확인 |
+| 예상 밖 예외 | `INTERNAL` / 500 | HTTP에서 변환되는 코드. consumer에는 원래 예외가 전달됨. 위 예시처럼 실패 결과로 처리 | 안 함. 로그의 스택 트레이스로 원인 확인 |
 
 `analyze_message`는 분석 전체를 재시도하지 않고 예외를 올린다.
-최종 `AppError`에는 consumer가 `failure_result(message)`를 호출한다.
+실패하면 consumer가 `failure_result(message)`를 호출한다. 예상 밖 예외도 같은 방식으로 처리해,
+한 메시지가 consumer를 반복해서 멈추게 하지 않도록 한다.
 반환값은 `analysis_status: FAILED`, `result: null`, `code: ANALYSIS_FAILED`,
 `message: analysis failed`이며 공통 결과 필드도 포함한다. **실패 결과의 코드는 단계별 코드가
 아니다.** 원래 단계별 코드는 같은 요청의 로그에서 확인한다.
 실패 결과를 발행하고 원본도 기록용 DLT에 남긴 뒤 오프셋을 커밋한다.
-예상 밖 예외의 처리는 consumer에서 별도로 정해야 하며, 위 예시는 이를 삼키지 않는다.
+예상 밖 예외는 `analyze_message`가 `code=INTERNAL`과 스택 트레이스를 로그에 남긴 뒤 올린다.
 
 후보가 없거나 모두 무관한 경우는 실패가 아니다. LLM 판정을 생략하고
 `UNKNOWN`, `report_count: 0`인 성공 결과를 만든다.
@@ -122,7 +126,9 @@ result = await asyncio.to_thread(analyze_message, message, analyzer)
 `50 × (30 × 2 + 1) + (60 × 2 + 1) = 3,171초`(52분 51초)다.
 이는 호출 시간과 재시도 대기로 계산한 값이다. 코드의 `httpx.Client(timeout=...)`는
 연결·읽기 등의 제한이며 분석 전체의 마감 시간을 보장하지 않는다. 코드 처리·통신 비용도
-별도다. **실측 필요.** `max.poll.interval.ms`는 이 계산과 실측에 여유를 두어 정하고,
+별도다. **실측 필요.** 참고로 2026-10-29 Decisions 단독 측정(짧은 입력, 질문 1개)에서
+쉬던 뒤 첫 호출은 약 2초, 연달아 부른 호출은 0.25~0.7초였다. 호출 시간은 첫 호출 여부에 따라
+크게 달라지므로 실제 요청 형식과 트래픽으로 다시 재서 정한다. `max.poll.interval.ms`는 이 계산과 실측에 여유를 두어 정하고,
 한 번의 poll에서 여러 메시지를 순서대로 처리한다면 합산 시간을 고려한다.
 비동기 consumer는 위 `asyncio.to_thread` 호출로 이벤트 루프를 막지 않도록 한다.
 
