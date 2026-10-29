@@ -3,6 +3,7 @@ import socket
 import time
 from collections.abc import Mapping
 
+import httpx
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
@@ -20,6 +21,26 @@ DURATION_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.
 EXCLUDED_PATHS = ("/health", "/metrics")
 
 
+def service_instance_id(env: Mapping[str, str]) -> str:
+    # ECS 태스크 ID는 ECS_TASK_ID가 있으면 그 값을, 없으면 task metadata v4의 TaskARN 끝 값을 쓴다.
+    # metadata를 못 읽으면 HOSTNAME으로 대체한다.
+    if env.get("ECS_TASK_ID"):
+        return env["ECS_TASK_ID"]
+    metadata_uri = env.get("ECS_CONTAINER_METADATA_URI_V4", "").strip()
+    if metadata_uri:
+        try:
+            res = httpx.get(f"{metadata_uri}/task", timeout=1.0)
+            res.raise_for_status()
+            body = res.json()
+            task_arn = body.get("TaskARN", "") if isinstance(body, dict) else ""
+            task_id = task_arn.rsplit("/", 1)[-1]
+            if task_id:
+                return task_id
+        except (httpx.HTTPError, ValueError):
+            pass
+    return socket.gethostname()
+
+
 def build_meter_provider(env: Mapping[str, str] = os.environ) -> MeterProvider | None:
     # OTLP_METRICS_ENABLED=true 이고 OTLP_METRICS_URL이 있을 때만 push한다. 아니면 None이고 push 코드는 붙지 않는다.
     endpoint = env.get("OTLP_METRICS_URL", "").strip()
@@ -28,7 +49,7 @@ def build_meter_provider(env: Mapping[str, str] = os.environ) -> MeterProvider |
 
     attributes = {
         "service.name": env.get("OTLP_SERVICE_NAME", "fastapi"),
-        "service.instance.id": env.get("ECS_TASK_ID") or socket.gethostname(),
+        "service.instance.id": service_instance_id(env),
         "deployment.environment": env.get("STAGE", "dev"),
     }
     namespace = env.get("OTLP_SERVICE_NAMESPACE", "").strip()
