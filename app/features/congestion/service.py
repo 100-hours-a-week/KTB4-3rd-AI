@@ -9,7 +9,7 @@ from uuid import uuid4
 import httpx
 
 from ...core.exceptions import AppError, CongestionDecisionsFailed, UpstreamError
-from ...core.logging import get_logger, http_reason, request_id
+from ...core.logging import SAFE_ID, get_logger, http_reason, request_id
 from .aggregator import aggregate_with_trace
 from .config import RELEVANCE_POLICY
 from .decisions import DecisionsRelevanceScorer
@@ -159,14 +159,18 @@ def failure_result(message: CongestionAnalysisMessage) -> CongestionAnalysisFail
 def analyze_message(
     message: CongestionAnalysisMessage, analyzer: CongestionAnalyzer
 ) -> CongestionAnalysisSuccess:
-    token = request_id.set(message.event_id) if not request_id.get() else None
+    # 공백·줄바꿈 등 로그 형식을 깨는 event_id는 로그에 넣지 않는다(HTTP 미들웨어와 같은 기준).
+    event_id = message.event_id if SAFE_ID.match(message.event_id) else None
+    token = None
+    if not request_id.get():
+        token = request_id.set(event_id or uuid4().hex[:12])
     started = monotonic()
     try:
         logger.info(
             "congestion analysis started: spot_id=%s event_id=%s bundles=%s posts=%s "
             "comments=%s context_only=%s",
             message.spot_id,
-            message.event_id,
+            event_id or "-",
             len(message.post_bundles),
             sum(not p.context_only for p in message.post_bundles),
             sum(len(p.comments) for p in message.post_bundles),
@@ -194,11 +198,12 @@ def analyze_message(
         )
         return response
     except Exception as exc:
-        log = logger.warning if isinstance(exc, AppError) else logger.error
+        # 예상 밖 예외는 원인을 찾을 수 있게 스택 트레이스를 함께 남긴다(Kafka 경로에는 HTTP 처리기가 없다).
+        log = logger.warning if isinstance(exc, AppError) else logger.exception
         log(
             "congestion analysis failed: spot_id=%s event_id=%s code=%s ms=%s",
             message.spot_id,
-            message.event_id,
+            event_id or "-",
             exc.code if isinstance(exc, AppError) else "INTERNAL",
             int((monotonic() - started) * 1000),
         )

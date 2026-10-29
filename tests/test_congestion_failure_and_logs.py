@@ -206,3 +206,33 @@ def test_analysis_logs_and_request_context(
             assert any(log.startswith("congestion relevance done:") for log in logs)
             assert any(log.startswith("congestion judge done:") for log in logs)
             assert any("decision=UNIQUE_TOP" in log for log in logs)
+
+
+@pytest.mark.parametrize("bad_id", ["has space", "line\nfake=1", "x" * 65])
+def test_unsafe_event_id_is_not_logged(
+    caplog: pytest.LogCaptureFixture, bad_id: str
+) -> None:
+    case = json.loads(
+        (Path(__file__).parent / "fixtures/congestion/spot-preview.json").read_text()
+    )
+    data = {**case["request"], "event_id": bad_id}
+    for post in data["post_bundles"]:
+        post["context_only"] = True
+        post["comments"] = []
+    message = CongestionAnalysisMessage.model_validate(data)
+
+    token = request_id.set(None)
+    try:
+        analyze_message(message, LLMCongestionAnalyzer(complete=lambda _: "{}"))
+    finally:
+        request_id.reset(token)
+    logs = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name.startswith("app.features.congestion")
+    ]
+    assert logs[0].startswith("congestion analysis started: ")
+    assert " event_id=- " in logs[0]
+    for log in logs:
+        assert re.search(r" request_id=[0-9a-f]{12}$", log)
+        assert bad_id not in log and "\n" not in log
