@@ -9,9 +9,12 @@ from .api.router import router
 from .core.config import DEVICE
 from .core.exceptions import HINTS, AppError, InternalError, RequestInvalid
 from .core.logging import get_logger, request_context
+from .core.telemetry import RequestMetrics, build_meter_provider
 from .llm import load
 
 logger = get_logger(__name__)
+# OTLP push는 OTLP_METRICS_ENABLED=true일 때만 켜진다. 꺼져 있으면 None이다.
+meter_provider = build_meter_provider()
 
 
 @asynccontextmanager
@@ -24,6 +27,9 @@ async def lifespan(app: FastAPI):
             except AppError:
                 pass
     yield
+    # 종료(SIGTERM) 때 아직 안 보낸 지표를 flush한다. 유예 시간 안에 끝나야 한다.
+    if meter_provider is not None:
+        meter_provider.shutdown()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -31,6 +37,9 @@ app.include_router(router)
 # Cloud Prometheus가 수집하는 /metrics. 대시보드·알림이 기본 지표 이름과 라벨을 쓰므로 설정을 바꾸지 않는다.
 # 헬스체크와 수집 요청은 지표에서 뺀다.
 Instrumentator(excluded_handlers=["/health", "/metrics"]).instrument(app).expose(app, include_in_schema=False)
+# 병행 기간 동안 같은 요청을 OTLP로도 보낸다. 이름은 /metrics와 맞춰 두었다(core/telemetry.py).
+if meter_provider is not None:
+    app.add_middleware(RequestMetrics, meter=meter_provider.get_meter("fastapi"), routes=app.routes)
 
 
 # 요청마다 request_id를 정해 로그에 붙인다. 가장 바깥 미들웨어가 되도록 다른 미들웨어보다 뒤에 등록한다.
