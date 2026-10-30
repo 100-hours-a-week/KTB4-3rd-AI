@@ -12,6 +12,9 @@ dependencies = [
     "qdrant-client>=1.19",
     # Cloud Prometheus가 수집하는 /metrics(요청량, 에러율, 지연).
     "prometheus-fastapi-instrumentator>=8.1",
+    # 태스크 종료 전에 마지막 지표를 OTLP로 보낸다(OTLP_METRICS_ENABLED=true일 때만 동작).
+    "opentelemetry-sdk>=1.41",
+    "opentelemetry-exporter-otlp-proto-http>=1.41",
 ]
 
 [project.optional-dependencies]
