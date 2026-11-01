@@ -9,7 +9,7 @@ from .preprocessor import CandidateSignal, PreparedSpot
 
 SignalKey = tuple[Literal["post", "comment"], int]
 RelevanceStatus = Literal["RELATED", "UNRELATED", "UNCERTAIN"]
-RelevanceScorer = Callable[[PreparedSpot], Mapping[SignalKey, float]]
+RelevanceScorer = Callable[[PreparedSpot], Mapping[SignalKey, float | None]]
 
 
 class RelevanceOutputInvalid(ValueError):
@@ -48,7 +48,7 @@ class RelevancePolicy:
 @dataclass(frozen=True)
 class RelevanceDecision:
     candidate: CandidateSignal
-    probability: float
+    probability: float | None
     status: RelevanceStatus
 
 
@@ -80,12 +80,14 @@ def classify_spot(
     decisions: list[RelevanceDecision] = []
     for candidate in prepared.candidates:
         probability = scores[(candidate.signal_type, candidate.signal_id)]
-        if not _valid_probability(probability):
+        if probability is not None and not _valid_probability(probability):
             raise RelevanceOutputInvalid(
                 "relevance probability is invalid", reason="bad_probability"
             )
         status: RelevanceStatus
-        if probability < policy.exclude_below:
+        if probability is None:
+            status = "UNCERTAIN"
+        elif probability < policy.exclude_below:
             status = "UNRELATED"
         elif probability >= policy.related_at_or_above:
             status = "RELATED"

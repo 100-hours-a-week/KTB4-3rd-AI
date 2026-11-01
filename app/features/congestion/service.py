@@ -102,11 +102,13 @@ class LLMCongestionAnalyzer:
                 )
                 raise CongestionDecisionsFailed() from exc
             logger.info(
-                "congestion relevance done: candidates=%s related=%s uncertain=%s unrelated=%s ms=%s",
+                "congestion relevance done: candidates=%s related=%s uncertain=%s "
+                "unrelated=%s refused=%s ms=%s",
                 len(prepared.candidates),
                 sum(d.status == "RELATED" for d in classified.decisions),
                 sum(d.status == "UNCERTAIN" for d in classified.decisions),
                 sum(d.status == "UNRELATED" for d in classified.decisions),
+                sum(d.probability is None for d in classified.decisions),
                 int((monotonic() - started) * 1000),
             )
             model_input = build_spot_input(classified)

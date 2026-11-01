@@ -64,12 +64,12 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
     assert response.status_code == 200
     logs = [r.getMessage() for r in caplog.records
             if r.name.startswith("app.features.congestion")]
-    assert any("candidates=5 related=2 uncertain=1 unrelated=2 ms=" in log for log in logs)
+    assert any("candidates=5 related=2 uncertain=1 unrelated=2 refused=0 ms=" in log for log in logs)
     assert any("targets=3 signals=3 ms=" in log for log in logs)
     assert any("level=LOW decision=UNIQUE_TOP report_count=1 causes=BREAKDOWN" in log
                for log in logs)
     assert all(log.endswith(f" request_id={response.headers['X-Request-ID']}") for log in logs)
-    assert len(decision_requests) == 3
+    assert len(decision_requests) == 1
     assert len(extraction_inputs) == 1
     assert extraction_inputs[0]["window_end"] == data["window_end"]
     for request in decision_requests:

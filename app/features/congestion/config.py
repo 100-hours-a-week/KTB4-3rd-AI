@@ -34,3 +34,5 @@ DECISIONS_ENDPOINT = ModelEndpoint(
 # 임시값이며 실측 뒤 조정한다. 이미지 기능의 제한 시간과 무관하다.
 JUDGE_POLICY = CallPolicy(timeout=60.0, retries=1)
 DECISIONS_POLICY = CallPolicy(timeout=30.0, retries=1)
+
+DECISIONS_MAX_QUESTIONS = 400

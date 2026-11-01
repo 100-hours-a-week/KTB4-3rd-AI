@@ -1,14 +1,14 @@
 """원글·댓글의 관련성 확률을 OpenAI Decisions API로 평가한다."""
 
 import json
-from typing import Literal
+from typing import Annotated, Literal
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from . import model_client
-from .config import DECISIONS_ENDPOINT
-from .preprocessor import CandidateSignal, PreparedSpot
+from .config import DECISIONS_ENDPOINT, DECISIONS_MAX_QUESTIONS
+from .preprocessor import PreparedSpot
 from .relevance import RelevanceOutputInvalid, SignalKey
 
 INSTRUCTIONS = """\
@@ -31,41 +31,41 @@ class _PredicateAnswer(BaseModel):
     probability: float = Field(strict=True, ge=0, le=1, allow_inf_nan=False)
 
 
+class _RefusalAnswer(BaseModel):
+    type: Literal["refusal"]
+    name: str = Field(strict=True)
+
+
 class _DecisionResponse(BaseModel):
-    answers: list[_PredicateAnswer]
+    answers: list[Annotated[_PredicateAnswer | _RefusalAnswer, Field(discriminator="type")]]
 
 
 class DecisionsRelevanceScorer:
-    """묶음별 공통 문맥에 원글·댓글별 질문을 싣고 완전한 확률표를 반환한다."""
+    """스팟 전체 문맥에 후보별 질문을 싣고 확률 또는 거부 답(None)을 반환한다."""
 
     def __init__(self, *, transport: httpx.BaseTransport | None = None) -> None:
         self._transport = transport
 
-    def __call__(self, prepared: PreparedSpot) -> dict[SignalKey, float]:
+    def __call__(self, prepared: PreparedSpot) -> dict[SignalKey, float | None]:
         if not prepared.candidates:
             return {}
-        targets_by_post: dict[int, list[CandidateSignal]] = {}
-        for candidate in prepared.candidates:
-            targets_by_post.setdefault(candidate.post_id, []).append(candidate)
-
-        scores: dict[SignalKey, float] = {}
-        for post in prepared.post_bundles:
-            candidates = targets_by_post.get(post.post_id, [])
-            if not candidates:
-                continue
+        shared_input = json.dumps(
+            {
+                "window_end": prepared.window_end.isoformat(),
+                "post_bundles": [post.model_dump(mode="json") for post in prepared.post_bundles],
+            },
+            ensure_ascii=False,
+        )
+        scores: dict[SignalKey, float | None] = {}
+        for start in range(0, len(prepared.candidates), DECISIONS_MAX_QUESTIONS):
+            candidates = prepared.candidates[start : start + DECISIONS_MAX_QUESTIONS]
             names = {
                 f"{item.signal_type}_{item.signal_id}": (item.signal_type, item.signal_id)
                 for item in candidates
             }
             body = {
                 "model": DECISIONS_ENDPOINT.model,
-                "input": json.dumps(
-                    {
-                        "window_end": prepared.window_end.isoformat(),
-                        "post_bundle": post.model_dump(mode="json"),
-                    },
-                    ensure_ascii=False,
-                ),
+                "input": shared_input,
                 "questions": [
                     {
                         "type": "predicate",
@@ -97,7 +97,9 @@ class DecisionsRelevanceScorer:
                         reason="id_mismatch",
                     )
                 seen.add(answer.name)
-                scores[names[answer.name]] = answer.probability
+                scores[names[answer.name]] = (
+                    answer.probability if answer.type == "predicate" else None
+                )
             if seen != set(names):
                 raise RelevanceOutputInvalid(
                     "decisions answer names do not match questions",

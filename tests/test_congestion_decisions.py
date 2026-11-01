@@ -67,7 +67,7 @@ def prepared() -> PreparedSpot:
     return prepare_spot(spot, datetime.fromisoformat("2026-10-12T12:00:00+09:00"))
 
 
-def test_bundle_requests_classify_all_candidates_and_keep_parent_context(
+def test_spot_request_classifies_all_candidates_and_keeps_parent_context(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -101,14 +101,14 @@ def test_bundle_requests_classify_all_candidates_and_keep_parent_context(
         ("comment", 3),
     ]
     assert [[item["name"] for item in payload["questions"]] for payload in received] == [
-        ["comment_1", "comment_2", "comment_3"],
-        ["post_3"],
+        ["comment_1", "comment_2", "comment_3", "post_3"],
     ]
     assert all(payload["model"] == "gpt-6-luna" for payload in received)
     context = json.loads(received[0]["input"])
+    assert len(context["post_bundles"]) == 2
     assert context["window_end"] == "2026-10-12T12:00:00+09:00"
-    assert context["post_bundle"]["title"] == "오래된 부모"
-    assert [item["comment_id"] for item in context["post_bundle"]["comments"]] == [1, 2, 3]
+    assert context["post_bundles"][0]["title"] == "오래된 부모"
+    assert [item["comment_id"] for item in context["post_bundles"][0]["comments"]] == [1, 2, 3]
 
 
 @pytest.mark.parametrize(
@@ -184,10 +184,11 @@ def test_http_errors_are_reported_as_provider_errors(
         scorer(prepared)
 
 
-def test_timeout_after_a_successful_bundle_returns_no_partial_scores(
+def test_timeout_after_a_successful_batch_returns_no_partial_scores(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
+    monkeypatch.setattr("app.features.congestion.decisions.DECISIONS_MAX_QUESTIONS", 3)
 
     def first_success_then_timeout(request: httpx.Request) -> httpx.Response:
         questions = json.loads(request.content)["questions"]
@@ -237,3 +238,87 @@ def test_empty_spot_needs_no_key_or_network(monkeypatch: pytest.MonkeyPatch) -> 
         DecisionsRelevanceScorer(transport=httpx.MockTransport(unexpected))(prepared)
         == {}
     )
+
+
+@pytest.mark.parametrize("candidate_count, sizes", [(400, [400]), (401, [400, 1]), (801, [400, 400, 1])])
+def test_questions_are_split_with_identical_spot_input(
+    candidate_count: int, sizes: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
+    posts = []
+    remaining = candidate_count
+    while remaining:
+        count = min(remaining, 101)
+        post_id = len(posts) + 1
+        posts.append({
+            "post_id": post_id, "context_only": False, "title": "합성 원글",
+            "content": "지금 승강장이 한산해요.", "author_key": f"synthetic-post-{post_id}",
+            "created_at": "2026-11-02T12:00:00+09:00",
+            "comments": [
+                {"comment_id": (post_id - 1) * 100 + i + 1, "content": "합성 댓글",
+                 "author_key": f"synthetic-comment-{post_id}-{i}",
+                 "created_at": "2026-11-02T12:00:00+09:00"}
+                for i in range(count - 1)
+            ],
+        })
+        remaining -= count
+    spot = CongestionSpotInput.model_validate({"spot_id": 7, "post_bundles": posts})
+    prepared = prepare_spot(spot, datetime.fromisoformat("2026-11-02T12:00:00+09:00"))
+    received = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        received.append(body)
+        return httpx.Response(200, json={"answers": [
+            {"type": "predicate", "name": q["name"], "probability": 0.9}
+            for q in reversed(body["questions"])
+        ]})
+
+    result = DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))(prepared)
+    assert len(result) == candidate_count
+    assert set(result) == {(c.signal_type, c.signal_id) for c in prepared.candidates}
+    assert [len(body["questions"]) for body in received] == sizes
+    assert all(body["input"] == received[0]["input"] for body in received)
+    assert json.loads(received[0]["input"])["post_bundles"] == posts
+
+
+def test_refusal_keeps_only_that_candidate_uncertain_and_logs_count(
+    prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.features.congestion.models import CongestionAnalysisMessage
+    from app.features.congestion.service import LLMCongestionAnalyzer
+
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        questions = json.loads(request.content)["questions"]
+        return httpx.Response(200, json={"answers": [
+            {"type": "refusal", "name": q["name"]} if q["name"] == "comment_1" else
+            {"type": "predicate", "name": q["name"], "probability": 0.0}
+            for q in reversed(questions)
+        ]})
+
+    scorer = DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))
+    policy = RelevancePolicy(0.2, 0.8)
+    classified = classify_spot(prepared, scorer, policy)
+    assert [d.status for d in classified.decisions] == [
+        "UNCERTAIN", "UNRELATED", "UNRELATED", "UNRELATED"
+    ]
+    assert classified.decisions[0].probability is None
+    assert classified.selected_candidates == (prepared.candidates[0],)
+
+    def complete(prompt: str) -> str:
+        targets = json.loads(prompt.split("입력 JSON:\n", 1)[1])["targets"]
+        assert targets == [{"signal_type": "comment", "signal_id": 1}]
+        return json.dumps({"signals": [
+            {**t, "congestion_level": "LOW", "causes": []} for t in targets
+        ]})
+
+    message = CongestionAnalysisMessage.model_validate({
+        "event_id": "synthetic-refusal", "schema_version": 1, "spot_id": prepared.spot_id,
+        "window_end": prepared.window_end.isoformat(),
+        "post_bundles": [p.model_dump(mode="json") for p in prepared.post_bundles],
+    })
+    result = LLMCongestionAnalyzer(score=scorer, policy=policy, complete=complete).analyze(message)
+    assert result.congestion_level == "LOW"
+    assert any("uncertain=1 unrelated=3 refused=1 ms=" in r.getMessage() for r in caplog.records)
