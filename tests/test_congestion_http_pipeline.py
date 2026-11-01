@@ -47,7 +47,7 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
             },
         )
 
-    def complete(prompt: str) -> str:
+    async def complete(prompt: str) -> str:
         extraction_inputs.append(json.loads(prompt.split("입력 JSON:\n", 1)[1]))
         return json.dumps(case["model_output"])
 

@@ -3,6 +3,7 @@
 import json
 from datetime import datetime
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -63,14 +64,15 @@ def output() -> dict[str, Any]:
     }
 
 
-def test_one_call_matches_reordered_results_to_original_targets(model_input: SpotLLMInput) -> None:
+@pytest.mark.asyncio
+async def test_one_call_matches_reordered_results_to_original_targets(model_input: SpotLLMInput) -> None:
     prompts: list[str] = []
 
-    def complete(prompt: str) -> str:
+    async def complete(prompt: str) -> str:
         prompts.append(prompt)
         return json.dumps(output(), ensure_ascii=False)
 
-    result = assess_spot(model_input, complete)
+    result = await assess_spot(model_input, complete)
 
     assert len(prompts) == 1
     assert "현재 기준은 입력의 window_end" in prompts[0]
@@ -87,7 +89,8 @@ def test_one_call_matches_reordered_results_to_original_targets(model_input: Spo
 
 
 @pytest.mark.parametrize("case", ["missing", "duplicate", "extra", "context", "wrong_type"])
-def test_target_mismatch_rejects_entire_spot(model_input: SpotLLMInput, case: str) -> None:
+@pytest.mark.asyncio
+async def test_target_mismatch_rejects_entire_spot(model_input: SpotLLMInput, case: str) -> None:
     body = output()
     if case == "missing":
         body["signals"].pop()
@@ -101,7 +104,7 @@ def test_target_mismatch_rejects_entire_spot(model_input: SpotLLMInput, case: st
     else:
         body["signals"][1]["signal_type"] = "reply"
     with pytest.raises(CongestionParseFailed):
-        assess_spot(model_input, lambda _: json.dumps(body))
+        await assess_spot(model_input, AsyncMock(side_effect=lambda _: json.dumps(body)))
 
 
 @pytest.mark.parametrize(
@@ -117,17 +120,19 @@ def test_target_mismatch_rejects_entire_spot(model_input: SpotLLMInput, case: st
         ("created_at", "2026-10-12T12:00:00+09:00"),
     ],
 )
-def test_invalid_signal_fields_are_rejected(
+@pytest.mark.asyncio
+async def test_invalid_signal_fields_are_rejected(
     model_input: SpotLLMInput, field: str, value: Any
 ) -> None:
     body = output()
     body["signals"][0][field] = value
     with pytest.raises(CongestionParseFailed):
-        assess_spot(model_input, lambda _: json.dumps(body))
+        await assess_spot(model_input, AsyncMock(side_effect=lambda _: json.dumps(body)))
 
 
 @pytest.mark.parametrize("case", ["invalid_json", "missing_signals", "extra_field", "non_text"])
-def test_invalid_spot_envelope_is_rejected(model_input: SpotLLMInput, case: str) -> None:
+@pytest.mark.asyncio
+async def test_invalid_spot_envelope_is_rejected(model_input: SpotLLMInput, case: str) -> None:
     body = output()
     if case == "missing_signals":
         body.pop("signals")
@@ -139,11 +144,12 @@ def test_invalid_spot_envelope_is_rejected(model_input: SpotLLMInput, case: str)
     elif case == "non_text":
         raw = body
     with pytest.raises(CongestionParseFailed):
-        assess_spot(model_input, lambda _: raw)
+        await assess_spot(model_input, AsyncMock(side_effect=lambda _: raw))
 
 
 @pytest.mark.parametrize("has_cause", [False, True])
-def test_no_stage_supports_cause_only_or_no_valid_evidence(
+@pytest.mark.asyncio
+async def test_no_stage_supports_cause_only_or_no_valid_evidence(
     model_input: SpotLLMInput, has_cause: bool
 ) -> None:
     body = output()
@@ -152,28 +158,30 @@ def test_no_stage_supports_cause_only_or_no_valid_evidence(
         signal["causes"] = []
     body["signals"][0]["causes"] = ["BREAKDOWN"] if has_cause else []
 
-    result = assess_spot(model_input, lambda _: json.dumps(body))
+    result = await assess_spot(model_input, AsyncMock(side_effect=lambda _: json.dumps(body)))
 
     assert all(signal.congestion_level is None for signal in result.signals)
     assert result.signals[1].causes == (frozenset({"BREAKDOWN"}) if has_cause else frozenset())
 
 
-def test_empty_input_skips_model_call() -> None:
-    def unexpected(_prompt: str) -> str:
+@pytest.mark.asyncio
+async def test_empty_input_skips_model_call() -> None:
+    async def unexpected(_prompt: str) -> str:
         pytest.fail("빈 대상에 모델을 호출함")
 
-    result = assess_spot(None, unexpected)
+    result = await assess_spot(None, unexpected)
     assert result.signals == ()
 
 
-def test_upstream_failure_is_not_retried(model_input: SpotLLMInput) -> None:
+@pytest.mark.asyncio
+async def test_upstream_failure_is_not_retried(model_input: SpotLLMInput) -> None:
     calls = 0
 
-    def fail(_prompt: str) -> str:
+    async def fail(_prompt: str) -> str:
         nonlocal calls
         calls += 1
         raise UpstreamError()
 
     with pytest.raises(UpstreamError):
-        assess_spot(model_input, fail)
+        await assess_spot(model_input, fail)
     assert calls == 1

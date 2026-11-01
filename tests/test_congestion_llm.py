@@ -1,7 +1,7 @@
 """실제 분석기의 연결과 모델 출력 검증. 네트워크 호출은 모의 함수로 대체한다."""
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
 
 import pytest
@@ -17,13 +17,14 @@ from app.features.congestion.service import LLMCongestionAnalyzer, get_analyzer
 from app.main import app
 
 
-def test_congestion_uses_model_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    def complete(prompt: str) -> str:
+@pytest.mark.asyncio
+async def test_congestion_uses_model_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def complete(prompt: str) -> str:
         assert prompt == "prompt"
         return '{"signals": []}'
 
     monkeypatch.setattr(extractor.model_client, "complete_json", complete)
-    assert extractor.call_api_model("prompt") == '{"signals": []}'
+    assert await extractor.call_api_model("prompt") == '{"signals": []}'
 
 
 def request_data() -> dict[str, Any]:
@@ -63,14 +64,15 @@ def decision(signals: list[dict[str, Any]]) -> str:
     return json.dumps({"signals": signals})
 
 
-def configured_analyzer(complete: Callable[[str], str]) -> LLMCongestionAnalyzer:
-    def related(prepared: PreparedSpot) -> dict[tuple[str, int], float]:
+def configured_analyzer(complete: Callable[[str], Awaitable[str]]) -> LLMCongestionAnalyzer:
+    async def related(prepared: PreparedSpot) -> dict[tuple[str, int], float]:
         return {(target.signal_type, target.signal_id): 0.9 for target in prepared.candidates}
 
     return LLMCongestionAnalyzer(score=related, policy=RelevancePolicy(0.2, 0.8), complete=complete)
 
 
-def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
+@pytest.mark.asyncio
+async def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
     data = request_data()
     spot = data
     old = dict(spot["post_bundles"][0], post_id=11, comments=[])
@@ -87,7 +89,7 @@ def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
     request = CongestionAnalysisMessage.model_validate(data)
     called: list[dict[str, Any]] = []
 
-    def complete(prompt: str) -> str:
+    async def complete(prompt: str) -> str:
         payload = json.loads(prompt.split("입력 JSON:\n", 1)[1])
         called.append(payload)
         return decision(
@@ -102,7 +104,7 @@ def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
             ]
         )
 
-    result = configured_analyzer(complete).analyze(request)
+    result = await configured_analyzer(complete).analyze(request)
     assert len(called) == 1
     assert [bundle["post_id"] for bundle in called[0]["post_bundles"]] == [10, 11, 12]
     assert called[0]["targets"] == [
@@ -121,7 +123,7 @@ def test_llm_analyzer_groups_selected_bundles_into_one_call() -> None:
 def use_mock_llm() -> Iterator[list[str]]:
     calls: list[str] = []
 
-    def complete(prompt: str) -> str:
+    async def complete(prompt: str) -> str:
         calls.append(prompt)
         payload = json.loads(prompt.split("입력 JSON:\n", 1)[1])
         return decision(
@@ -169,7 +171,7 @@ def test_http_uses_real_analyzer_pipeline_with_injected_model(
 def test_expected_model_error_returns_http_error(error: Exception) -> None:
     data = request_data()
 
-    def fail(_prompt: str) -> str:
+    async def fail(_prompt: str) -> str:
         raise error
 
     app.dependency_overrides[get_analyzer] = lambda: configured_analyzer(fail)
@@ -191,7 +193,7 @@ def test_failed_message_does_not_retry_and_next_request_continues() -> None:
     data = request_data()
     called: list[int] = []
 
-    def complete(prompt: str) -> str:
+    async def complete(prompt: str) -> str:
         payload = json.loads(prompt.split("입력 JSON:\n", 1)[1])
         called.append(payload["spot_id"])
         if payload["spot_id"] == 1:

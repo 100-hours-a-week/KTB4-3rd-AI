@@ -111,8 +111,8 @@ CONSTRUCTION(공사·시설 작업), DEMONSTRATION(집회·시위·행진).
 """
 
 
-def call_api_model(prompt: str) -> str:
-    output = model_client.complete_json(prompt)
+async def call_api_model(prompt: str) -> str:
+    output = await model_client.complete_json(prompt)
     if not isinstance(output, str):
         raise ModelOutputInvalid("api model did not return text")
     return output

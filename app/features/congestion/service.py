@@ -1,6 +1,6 @@
 """스팟별 분석기 경계와 요청 결과 조립."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from time import monotonic
 from typing import Protocol
@@ -37,13 +37,13 @@ logger = get_logger(__name__)
 
 
 class CongestionAnalyzer(Protocol):
-    def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult: ...
+    async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult: ...
 
 
 class FakeCongestionAnalyzer:
     """테스트에서만 사용하는 고정 예시 분석기."""
 
-    def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+    async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
         return CongestionResult(
             congestion_level="MEDIUM",
             report_count=1,
@@ -59,7 +59,7 @@ class LLMCongestionAnalyzer:
         *,
         score: RelevanceScorer | None = None,
         policy: RelevancePolicy | None = None,
-        complete: Callable[[str], str] = call_api_model,
+        complete: Callable[[str], Awaitable[str]] = call_api_model,
     ) -> None:
         if (score is None) != (policy is None):
             raise ValueError("score and policy must be provided together")
@@ -67,7 +67,7 @@ class LLMCongestionAnalyzer:
         self._policy = policy
         self._complete = complete
 
-    def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+    async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
         prepared = prepare_spot(message, message.window_end)
         signals: tuple[AssessedSignal, ...] = ()
         if not prepared.candidates:
@@ -79,7 +79,7 @@ class LLMCongestionAnalyzer:
             started = monotonic()
             try:
                 score, policy = self._configured_scorer()
-                classified = classify_spot(prepared, score, policy)
+                classified = await classify_spot(prepared, score, policy)
             except (UpstreamError, RelevanceOutputInvalid) as exc:
                 cause = exc.__cause__
                 reason = (
@@ -119,7 +119,7 @@ class LLMCongestionAnalyzer:
                 )
             else:
                 started = monotonic()
-                signals = assess_spot(model_input, self._complete).signals
+                signals = (await assess_spot(model_input, self._complete)).signals
                 logger.info(
                     "congestion judge done: targets=%s signals=%s ms=%s",
                     len(model_input.targets),
@@ -158,7 +158,7 @@ def failure_result(message: CongestionAnalysisMessage) -> CongestionAnalysisFail
     )
 
 
-def analyze_message(
+async def analyze_message(
     message: CongestionAnalysisMessage, analyzer: CongestionAnalyzer
 ) -> CongestionAnalysisSuccess:
     # 공백·줄바꿈 등 로그 형식을 깨는 event_id는 로그에 넣지 않는다(HTTP 미들웨어와 같은 기준).
@@ -178,7 +178,7 @@ def analyze_message(
             sum(len(p.comments) for p in message.post_bundles),
             sum(p.context_only for p in message.post_bundles),
         )
-        result = analyzer.analyze(message)
+        result = await analyzer.analyze(message)
         response = CongestionAnalysisSuccess(
             event_id=str(uuid4()),
             schema_version=1,

@@ -19,10 +19,11 @@ class ModelEndpoint:
 
 @dataclass(frozen=True)
 class CallPolicy:
-    """시도 한 번의 제한 시간과 429·5xx 재시도 횟수."""
+    """시도 한 번의 제한 시간, 429·5xx 재시도 횟수와 동시 호출 수."""
 
     timeout: float
     retries: int
+    concurrency: int
 
 
 JUDGE_ENDPOINT = ModelEndpoint(
@@ -32,7 +33,7 @@ DECISIONS_ENDPOINT = ModelEndpoint(
     "https://api.openai.com/v1/decisions", "gpt-6-luna", "OPENAI_API_KEY_2"
 )
 # 임시값이며 실측 뒤 조정한다. 이미지 기능의 제한 시간과 무관하다.
-JUDGE_POLICY = CallPolicy(timeout=60.0, retries=1)
-DECISIONS_POLICY = CallPolicy(timeout=30.0, retries=1)
+JUDGE_POLICY = CallPolicy(timeout=60.0, retries=1, concurrency=5)
+DECISIONS_POLICY = CallPolicy(timeout=30.0, retries=1, concurrency=10)
 
 DECISIONS_MAX_QUESTIONS = 400

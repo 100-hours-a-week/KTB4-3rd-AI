@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post("/congestion-analyses", response_model=CongestionAnalysisResult)
-def congestion_analysis(
+async def congestion_analysis(
     # 모델 스키마의 알파벳 정렬을 피하고 요청 예시의 필드 작성 순서를 유지한다.
     req: Annotated[
         CongestionAnalysisMessage,
@@ -18,4 +18,4 @@ def congestion_analysis(
     ],
     analyzer: Annotated[CongestionAnalyzer, Depends(get_analyzer)],
 ) -> CongestionAnalysisResult:
-    return analyze_message(req, analyzer)
+    return await analyze_message(req, analyzer)

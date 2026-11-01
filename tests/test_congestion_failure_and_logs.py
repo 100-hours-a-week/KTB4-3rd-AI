@@ -4,6 +4,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -53,7 +54,7 @@ def test_stage_http_failure_and_reason(
     )
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
     monkeypatch.setattr(
-        "app.features.congestion.model_client.time.sleep", lambda _: None
+        "app.features.congestion.model_client.asyncio.sleep", AsyncMock()
     )
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -80,7 +81,7 @@ def test_stage_http_failure_and_reason(
             },
         )
 
-    def related(prepared: Any) -> dict[Any, float]:
+    async def related(prepared: Any) -> dict[Any, float]:
         return {(c.signal_type, c.signal_id): 0.9 for c in prepared.candidates}
 
     analyzer = LLMCongestionAnalyzer(
@@ -88,7 +89,7 @@ def test_stage_http_failure_and_reason(
         if stage == "relevance"
         else related,
         policy=RelevancePolicy(0.2, 0.8),
-        complete=lambda _: "private body" if case == "not_json" else '{"signals": []}',
+        complete=AsyncMock(side_effect=lambda _: "private body" if case == "not_json" else '{"signals": []}'),
     )
     app.dependency_overrides[get_analyzer] = lambda: analyzer
     try:
@@ -129,7 +130,8 @@ def test_stage_http_failure_and_reason(
     "mode", ["success", "no_candidates", "all_unrelated", "failure"]
 )
 @pytest.mark.parametrize("existing_id", [None, "consumer-job"])
-def test_analysis_logs_and_request_context(
+@pytest.mark.asyncio
+async def test_analysis_logs_and_request_context(
     caplog: pytest.LogCaptureFixture,
     mode: str,
     existing_id: str | None,
@@ -144,7 +146,7 @@ def test_analysis_logs_and_request_context(
             post["comments"] = []
     message = CongestionAnalysisMessage.model_validate(data)
 
-    def score(prepared: Any) -> dict[Any, float]:
+    async def score(prepared: Any) -> dict[Any, float]:
         if mode == "no_candidates":
             pytest.fail("후보가 없는데 관련성 선별을 호출함")
         return {
@@ -152,7 +154,7 @@ def test_analysis_logs_and_request_context(
             for c in prepared.candidates
         }
 
-    def complete(prompt: str) -> str:
+    async def complete(prompt: str) -> str:
         if mode in {"no_candidates", "all_unrelated"}:
             pytest.fail("대상이 없는데 판정을 호출함")
         if mode == "failure":
@@ -173,9 +175,9 @@ def test_analysis_logs_and_request_context(
         )
         if mode == "failure":
             with pytest.raises(RuntimeError, match="private details"):
-                analyze_message(message, analyzer)
+                await analyze_message(message, analyzer)
         else:
-            result = analyze_message(message, analyzer)
+            result = await analyze_message(message, analyzer)
             assert result.analysis_status == "SUCCESS"
             if mode in {"no_candidates", "all_unrelated"}:
                 assert result.result.congestion_level == "UNKNOWN"
@@ -209,7 +211,8 @@ def test_analysis_logs_and_request_context(
 
 
 @pytest.mark.parametrize("bad_id", ["has space", "line\nfake=1", "x" * 65])
-def test_unsafe_event_id_is_not_logged(
+@pytest.mark.asyncio
+async def test_unsafe_event_id_is_not_logged(
     caplog: pytest.LogCaptureFixture, bad_id: str
 ) -> None:
     case = json.loads(
@@ -223,7 +226,7 @@ def test_unsafe_event_id_is_not_logged(
 
     token = request_id.set(None)
     try:
-        analyze_message(message, LLMCongestionAnalyzer(complete=lambda _: "{}"))
+        await analyze_message(message, LLMCongestionAnalyzer(complete=AsyncMock(side_effect=lambda _: "{}")))
     finally:
         request_id.reset(token)
     logs = [

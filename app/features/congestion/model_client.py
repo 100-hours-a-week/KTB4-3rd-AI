@@ -1,7 +1,9 @@
 """혼잡도의 외부 모델 호출과 호출 정책을 한곳에서 처리한다."""
 
+import asyncio
 import os
 import time
+from math import isfinite
 from typing import Any
 
 import httpx
@@ -19,8 +21,11 @@ from .config import (
 
 logger = get_logger(__name__)
 
+_JUDGE_SEMAPHORE = asyncio.Semaphore(JUDGE_POLICY.concurrency)
+_DECISIONS_SEMAPHORE = asyncio.Semaphore(DECISIONS_POLICY.concurrency)
 
-def complete_json(prompt: str, *, transport: httpx.BaseTransport | None = None) -> str:
+
+async def complete_json(prompt: str, *, transport: httpx.AsyncBaseTransport | None = None) -> str:
     body = {
         "model": JUDGE_ENDPOINT.model,
         "input": [
@@ -28,22 +33,24 @@ def complete_json(prompt: str, *, transport: httpx.BaseTransport | None = None) 
         ],
         "text": {"format": {"type": "json_object"}},
     }
-    data = _call("responses", JUDGE_ENDPOINT, JUDGE_POLICY, body, transport)
+    async with _JUDGE_SEMAPHORE:
+        data = await _call("responses", JUDGE_ENDPOINT, JUDGE_POLICY, body, transport)
     return str(data["output_text"])
 
 
-def decide(
-    body: dict[str, Any], *, transport: httpx.BaseTransport | None = None
+async def decide(
+    body: dict[str, Any], *, transport: httpx.AsyncBaseTransport | None = None
 ) -> dict[str, Any]:
-    return _call("decisions", DECISIONS_ENDPOINT, DECISIONS_POLICY, body, transport)
+    async with _DECISIONS_SEMAPHORE:
+        return await _call("decisions", DECISIONS_ENDPOINT, DECISIONS_POLICY, body, transport)
 
 
-def _call(
+async def _call(
     api: str,
     endpoint: ModelEndpoint,
     policy: CallPolicy,
     body: dict[str, Any],
-    transport: httpx.BaseTransport | None,
+    transport: httpx.AsyncBaseTransport | None,
 ) -> dict[str, Any]:
     try:
         key = os.environ[endpoint.key_env]
@@ -62,7 +69,7 @@ def _call(
     error = "-"
     reason = "not_json"
     try:
-        with httpx.Client(
+        async with httpx.AsyncClient(
             headers={"Authorization": f"Bearer {key}"},
             timeout=policy.timeout,
             transport=transport,
@@ -70,7 +77,7 @@ def _call(
             for attempt in range(1, policy.retries + 2):
                 response = None
                 error = "-"
-                response = client.post(endpoint.url, json=body)
+                response = await client.post(endpoint.url, json=body)
                 # 오류 메시지는 버리고 type/code만 공백 없이 기록한다.
                 if response.is_error:
                     try:
@@ -84,13 +91,23 @@ def _call(
                 if attempt <= policy.retries and (
                     response.status_code == 429 or 500 <= response.status_code < 600
                 ):
+                    delay = 1.0
+                    if response.status_code == 429:
+                        try:
+                            seconds = float(response.headers.get("Retry-After", "1"))
+                            if isfinite(seconds) and seconds >= 0:
+                                delay = seconds
+                        except ValueError:
+                            pass
+                        if delay > policy.timeout:
+                            response.raise_for_status()
                     logger.warning(
                         "congestion model call retry: api=%s status=%s error=%s",
                         api,
                         response.status_code,
                         error,
                     )
-                    time.sleep(1.0)
+                    await asyncio.sleep(delay)
                     continue
                 response.raise_for_status()
                 break

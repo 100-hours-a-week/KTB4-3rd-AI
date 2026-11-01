@@ -1,6 +1,6 @@
 """스팟별 개별 단계·원인 판정을 한 번에 받아 검증한다."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -51,13 +51,15 @@ class AssessedSpot:
     signals: tuple[AssessedSignal, ...]
 
 
-def assess_spot(model_input: SpotLLMInput | None, complete: Callable[[str], str]) -> AssessedSpot:
+async def assess_spot(
+    model_input: SpotLLMInput | None, complete: Callable[[str], Awaitable[str]]
+) -> AssessedSpot:
     """전체 대상·값을 검증한 경우에만 원본 순서로 판정을 반환한다."""
     if model_input is None:
         return AssessedSpot(signals=())
     reason = "not_json"
     try:
-        raw = complete(SPOT_PROMPT + model_input.payload)
+        raw = await complete(SPOT_PROMPT + model_input.payload)
         if not isinstance(raw, str):
             raise ModelOutputInvalid("api model did not return text")
         try:

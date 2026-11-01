@@ -3,6 +3,7 @@
 import json
 from datetime import datetime
 from typing import Any
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -67,7 +68,8 @@ def prepared() -> PreparedSpot:
     return prepare_spot(spot, datetime.fromisoformat("2026-10-12T12:00:00+09:00"))
 
 
-def test_spot_request_classifies_all_candidates_and_keeps_parent_context(
+@pytest.mark.asyncio
+async def test_spot_request_classifies_all_candidates_and_keeps_parent_context(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -92,7 +94,7 @@ def test_spot_request_classifies_all_candidates_and_keeps_parent_context(
         )
 
     scorer = DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))
-    result = classify_spot(
+    result = await classify_spot(
         prepared, scorer, RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8)
     )
     assert [item.probability for item in result.decisions] == [0.9, 0.0, 0.5, 0.01]
@@ -132,7 +134,8 @@ def test_spot_request_classifies_all_candidates_and_keeps_parent_context(
         {"answers": [{"type": "choice", "name": "comment_1", "choice": "related"}]},
     ],
 )
-def test_invalid_answers_cannot_produce_partial_scores(
+@pytest.mark.asyncio
+async def test_invalid_answers_cannot_produce_partial_scores(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, body: Any
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -140,11 +143,12 @@ def test_invalid_answers_cannot_produce_partial_scores(
         transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
     )
     with pytest.raises(RelevanceOutputInvalid):
-        scorer(prepared)
+        await scorer(prepared)
 
 
 @pytest.mark.parametrize("probability", [-0.1, 1.1, True, "0.9", None])
-def test_invalid_probability_is_rejected(
+@pytest.mark.asyncio
+async def test_invalid_probability_is_rejected(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, probability: Any
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -158,10 +162,11 @@ def test_invalid_probability_is_rejected(
         transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
     )
     with pytest.raises(RelevanceOutputInvalid):
-        scorer(prepared)
+        await scorer(prepared)
 
 
-def test_non_json_response_is_rejected(
+@pytest.mark.asyncio
+async def test_non_json_response_is_rejected(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -169,22 +174,25 @@ def test_non_json_response_is_rejected(
         transport=httpx.MockTransport(lambda _: httpx.Response(200, text="not json"))
     )
     with pytest.raises(UpstreamError):
-        scorer(prepared)
+        await scorer(prepared)
 
 
 @pytest.mark.parametrize("status", [401, 429, 500])
-def test_http_errors_are_reported_as_provider_errors(
+@pytest.mark.asyncio
+async def test_http_errors_are_reported_as_provider_errors(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, status: int
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
+    monkeypatch.setattr("app.features.congestion.model_client.asyncio.sleep", AsyncMock())
     scorer = DecisionsRelevanceScorer(
         transport=httpx.MockTransport(lambda _: httpx.Response(status))
     )
     with pytest.raises(UpstreamError):
-        scorer(prepared)
+        await scorer(prepared)
 
 
-def test_timeout_after_a_successful_batch_returns_no_partial_scores(
+@pytest.mark.asyncio
+async def test_timeout_after_a_successful_batch_returns_no_partial_scores(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -208,10 +216,11 @@ def test_timeout_after_a_successful_batch_returns_no_partial_scores(
         transport=httpx.MockTransport(first_success_then_timeout)
     )
     with pytest.raises(UpstreamError):
-        scorer(prepared)
+        await scorer(prepared)
 
 
-def test_missing_key_prevents_network_call(
+@pytest.mark.asyncio
+async def test_missing_key_prevents_network_call(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
@@ -221,10 +230,11 @@ def test_missing_key_prevents_network_call(
 
     scorer = DecisionsRelevanceScorer(transport=httpx.MockTransport(unexpected))
     with pytest.raises(ModelNotReady):
-        scorer(prepared)
+        await scorer(prepared)
 
 
-def test_empty_spot_needs_no_key_or_network(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.asyncio
+async def test_empty_spot_needs_no_key_or_network(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY_2", raising=False)
     prepared = prepare_spot(
         CongestionSpotInput(spot_id=1, post_bundles=[]),
@@ -235,13 +245,14 @@ def test_empty_spot_needs_no_key_or_network(monkeypatch: pytest.MonkeyPatch) -> 
         pytest.fail("빈 후보에 대한 네트워크가 호출됨")
 
     assert (
-        DecisionsRelevanceScorer(transport=httpx.MockTransport(unexpected))(prepared)
+        await DecisionsRelevanceScorer(transport=httpx.MockTransport(unexpected))(prepared)
         == {}
     )
 
 
 @pytest.mark.parametrize("candidate_count, sizes", [(400, [400]), (401, [400, 1]), (801, [400, 400, 1])])
-def test_questions_are_split_with_identical_spot_input(
+@pytest.mark.asyncio
+async def test_questions_are_split_with_identical_spot_input(
     candidate_count: int, sizes: list[int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
@@ -274,7 +285,7 @@ def test_questions_are_split_with_identical_spot_input(
             for q in reversed(body["questions"])
         ]})
 
-    result = DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))(prepared)
+    result = await DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))(prepared)
     assert len(result) == candidate_count
     assert set(result) == {(c.signal_type, c.signal_id) for c in prepared.candidates}
     assert [len(body["questions"]) for body in received] == sizes
@@ -282,7 +293,8 @@ def test_questions_are_split_with_identical_spot_input(
     assert json.loads(received[0]["input"])["post_bundles"] == posts
 
 
-def test_refusal_keeps_only_that_candidate_uncertain_and_logs_count(
+@pytest.mark.asyncio
+async def test_refusal_keeps_only_that_candidate_uncertain_and_logs_count(
     prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     from app.features.congestion.models import CongestionAnalysisMessage
@@ -300,14 +312,14 @@ def test_refusal_keeps_only_that_candidate_uncertain_and_logs_count(
 
     scorer = DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))
     policy = RelevancePolicy(0.2, 0.8)
-    classified = classify_spot(prepared, scorer, policy)
+    classified = await classify_spot(prepared, scorer, policy)
     assert [d.status for d in classified.decisions] == [
         "UNCERTAIN", "UNRELATED", "UNRELATED", "UNRELATED"
     ]
     assert classified.decisions[0].probability is None
     assert classified.selected_candidates == (prepared.candidates[0],)
 
-    def complete(prompt: str) -> str:
+    async def complete(prompt: str) -> str:
         targets = json.loads(prompt.split("입력 JSON:\n", 1)[1])["targets"]
         assert targets == [{"signal_type": "comment", "signal_id": 1}]
         return json.dumps({"signals": [
@@ -319,6 +331,35 @@ def test_refusal_keeps_only_that_candidate_uncertain_and_logs_count(
         "window_end": prepared.window_end.isoformat(),
         "post_bundles": [p.model_dump(mode="json") for p in prepared.post_bundles],
     })
-    result = LLMCongestionAnalyzer(score=scorer, policy=policy, complete=complete).analyze(message)
+    result = await LLMCongestionAnalyzer(score=scorer, policy=policy, complete=complete).analyze(message)
     assert result.congestion_level == "LOW"
     assert any("uncertain=1 unrelated=3 refused=1 ms=" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_split_decisions_calls_run_together(
+    prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
+    monkeypatch.setattr("app.features.congestion.decisions.DECISIONS_MAX_QUESTIONS", 3)
+    both_started = asyncio.Event()
+    calls = 0
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            both_started.set()
+        await both_started.wait()
+        questions = json.loads(request.content)["questions"]
+        return httpx.Response(200, json={"answers": [
+            {"type": "predicate", "name": q["name"], "probability": 0.9}
+            for q in reversed(questions)
+        ]})
+
+    scorer = DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))
+    result = await asyncio.wait_for(scorer(prepared), timeout=1)
+    assert calls == 2
+    assert result == {(c.signal_type, c.signal_id): 0.9 for c in prepared.candidates}

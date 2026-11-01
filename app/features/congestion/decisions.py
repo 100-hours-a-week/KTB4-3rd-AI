@@ -1,5 +1,6 @@
 """원글·댓글의 관련성 확률을 OpenAI Decisions API로 평가한다."""
 
+import asyncio
 import json
 from typing import Annotated, Literal
 
@@ -43,10 +44,10 @@ class _DecisionResponse(BaseModel):
 class DecisionsRelevanceScorer:
     """스팟 전체 문맥에 후보별 질문을 싣고 확률 또는 거부 답(None)을 반환한다."""
 
-    def __init__(self, *, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._transport = transport
 
-    def __call__(self, prepared: PreparedSpot) -> dict[SignalKey, float | None]:
+    async def __call__(self, prepared: PreparedSpot) -> dict[SignalKey, float | None]:
         if not prepared.candidates:
             return {}
         shared_input = json.dumps(
@@ -56,7 +57,8 @@ class DecisionsRelevanceScorer:
             },
             ensure_ascii=False,
         )
-        scores: dict[SignalKey, float | None] = {}
+        batches = []
+        calls = []
         for start in range(0, len(prepared.candidates), DECISIONS_MAX_QUESTIONS):
             candidates = prepared.candidates[start : start + DECISIONS_MAX_QUESTIONS]
             names = {
@@ -75,7 +77,11 @@ class DecisionsRelevanceScorer:
                     for name, (kind, signal_id) in names.items()
                 ],
             }
-            response = model_client.decide(body, transport=self._transport)
+            batches.append(names)
+            calls.append(model_client.decide(body, transport=self._transport))
+        responses = await asyncio.gather(*calls)
+        scores: dict[SignalKey, float | None] = {}
+        for names, response in zip(batches, responses, strict=True):
             try:
                 parsed = _DecisionResponse.model_validate(response)
             except (ValidationError, ValueError) as exc:

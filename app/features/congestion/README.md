@@ -10,6 +10,7 @@
 `raw_request`는 실행 가능한 합성 예시이며, consumer에서는 Kafka 메시지 본문으로 바꾼다.
 
 ```python
+import asyncio
 import json
 
 from pydantic import ValidationError
@@ -32,7 +33,7 @@ except ValidationError:
     raise
 
 try:
-    result = analyze_message(message, analyzer)
+    result = asyncio.run(analyze_message(message, analyzer))
 except Exception:
     # 단계별 실패(AppError)와 예상 밖 예외 모두 실패 결과를 발행하고 원본도 기록용 DLT에 남긴다.
     # 원인은 analyze_message가 같은 request_id로 남긴 로그에 있다.
@@ -44,10 +45,10 @@ result_body = result.model_dump_json()
 # 결과 발행과 필요한 DLT 전송이 성공한 뒤 오프셋을 커밋한다.
 ```
 
-분석은 동기다. 비동기 consumer에서는 `asyncio`를 import하고 분석 호출을 다음으로 바꾼다.
+분석은 비동기다. 위 예시는 동기 호출용이며, 비동기 consumer에서는 다음처럼 기다린다.
 
 ```python
-result = await asyncio.to_thread(analyze_message, message, analyzer)
+result = await analyze_message(message, analyzer)
 ```
 
 요청 토픽은 `congestion.analysis.request`, 결과 토픽은 `congestion.analysis.result`,
@@ -107,7 +108,8 @@ result = await asyncio.to_thread(analyze_message, message, analyzer)
 ## 재시도와 처리 시간
 
 외부 모델 호출은 [model_client.py](model_client.py)에서만 한다.
-429·5xx 응답이면 1초 뒤 한 번 더 보낸다. 시간 초과·연결 실패·그 밖의 4xx·응답 형식
+429·5xx 응답이면 기본 1초 뒤 한 번 더 보낸다. 429의 `Retry-After`가 유효한 초 값이면
+그만큼 기다리며, 정책의 `timeout`보다 길면 기다리지 않고 실패한다. 시간 초과·연결 실패·그 밖의 4xx·응답 형식
 오류는 AI 내부에서 재시도하지 않는다. consumer 재시도는 Spring BE가 결정하되,
 위 표의 세 코드(`UPSTREAM_FAILED`, `CONGESTION_DECISIONS_FAILED`, `MODEL_NOT_READY`)에
 한정하고 다음 구간 전에 끝낼 수 있을 때만 권한다. 코드만으로 일시적 오류를 구분할 수는
@@ -119,18 +121,16 @@ result = await asyncio.to_thread(analyze_message, message, analyzer)
 
 | 설정 | timeout | retries | 호출 수 |
 | --- | --- | --- | --- |
-| `DECISIONS_POLICY` | 30초 | 1 | 후보가 있는 묶음마다 순서대로 1회, 최대 50회 |
+| `DECISIONS_POLICY` | 30초 | 1 | 스팟 전체 후보를 400개씩 나눠 동시 호출, 최대 3회 |
 | `JUDGE_POLICY` | 60초 | 1 | 선별 후 대상이 있으면 스팟당 1회 |
 
-시도마다 설정된 시간을 모두 쓰고 429·5xx로 재시도하는 경우를 계산하면
-`50 × (30 × 2 + 1) + (60 × 2 + 1) = 3,171초`(52분 51초)다.
-이는 호출 시간과 재시도 대기로 계산한 값이다. 코드의 `httpx.Client(timeout=...)`는
-연결·읽기 등의 제한이며 분석 전체의 마감 시간을 보장하지 않는다. 코드 처리·통신 비용도
+호출 제한 대기와 재시도 대기가 있으므로 분석 전체의 마감 시간은 별도로 보장하지 않는다.
+코드의 `httpx.AsyncClient(timeout=...)`는 연결·읽기 등의 제한이다. 코드 처리·통신 비용도
 별도다. **실측 필요.** 참고로 2026-10-29 Decisions 단독 측정(짧은 입력, 질문 1개)에서
 쉬던 뒤 첫 호출은 약 2초, 연달아 부른 호출은 0.25~0.7초였다. 호출 시간은 첫 호출 여부에 따라
-크게 달라지므로 실제 요청 형식과 트래픽으로 다시 재서 정한다. `max.poll.interval.ms`는 이 계산과 실측에 여유를 두어 정하고,
+크게 달라지므로 실제 요청 형식과 트래픽으로 다시 재서 정한다. `max.poll.interval.ms`는 실측에 여유를 두어 정하고,
 한 번의 poll에서 여러 메시지를 순서대로 처리한다면 합산 시간을 고려한다.
-비동기 consumer는 위 `asyncio.to_thread` 호출로 이벤트 루프를 막지 않도록 한다.
+비동기 consumer는 위 `await analyze_message(...)` 호출로 이벤트 루프를 막지 않도록 한다.
 
 ## 환경 변수·로그·변경 범위
 
@@ -152,3 +152,13 @@ HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요�
 
 [router.py](router.py)의 `POST /congestion-analyses`는 시험용으로 남아 있다.
 성공은 결과 메시지, 실패는 단계별 HTTP 오류이며 `200 + FAILED`로 반환하지 않는다.
+
+## Spring BE가 알아야 할 변경
+
+- 2026-11-02 · 10단계: `analyze_message`와 분석기의 `analyze`는 비동기다.
+  비동기 consumer는 `await analyze_message(...)`, 동기 코드의 단독 호출은
+  `asyncio.run(analyze_message(...))`을 쓴다. 동시 분석은 프로세스마다 하나의
+  지속되는 이벤트 루프에서 실행해야 한다. Semaphore를 여러 스레드·이벤트 루프가 공유할 수 없다.
+- API마다 프로세스 전체에서 Semaphore 하나를 공유한다. 임시 동시 호출 수는
+  `config.py`의 `JUDGE_POLICY.concurrency=5`, `DECISIONS_POLICY.concurrency=10`이다.
+  재시도 대기 중에도 자리를 유지하며 취소·실패·완료 시 반환한다. 대기열 시간은 `timeout`에 포함되지 않는다.

@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -83,13 +84,14 @@ def spot() -> CongestionSpotInput:
     )
 
 
-def test_selected_signals_from_multiple_bundles_share_one_spot_input(
+@pytest.mark.asyncio
+async def test_selected_signals_from_multiple_bundles_share_one_spot_input(
     spot: CongestionSpotInput,
 ) -> None:
     prepared = prepare_spot(spot, WINDOW_END)
-    classified = classify_spot(
+    classified = await classify_spot(
         prepared,
-        lambda _: {
+        AsyncMock(side_effect=lambda _: {
             ("comment", 1): 0.0,
             ("comment", 2): 0.0,
             ("comment", 3): 0.9,
@@ -97,7 +99,7 @@ def test_selected_signals_from_multiple_bundles_share_one_spot_input(
             ("comment", 5): 0.5,
             ("post", 3): 0.9,
             ("post", 4): 0.0,
-        },
+        }),
         POLICY,
     )
     original = spot.model_dump()
@@ -142,26 +144,28 @@ def test_selected_signals_from_multiple_bundles_share_one_spot_input(
 
 
 @pytest.mark.parametrize("case", ["empty", "context_only", "unrelated"])
-def test_no_selected_signals_produce_no_llm_input(spot: CongestionSpotInput, case: str) -> None:
+@pytest.mark.asyncio
+async def test_no_selected_signals_produce_no_llm_input(spot: CongestionSpotInput, case: str) -> None:
     if case == "empty":
         spot.post_bundles = []
     elif case == "context_only":
         spot.post_bundles = [spot.post_bundles[0].model_copy(update={"comments": []})]
     prepared = prepare_spot(spot, WINDOW_END)
-    classified = classify_spot(
+    classified = await classify_spot(
         prepared,
-        lambda item: {(target.signal_type, target.signal_id): 0.0 for target in item.candidates},
+        AsyncMock(side_effect=lambda item: {(target.signal_type, target.signal_id): 0.0 for target in item.candidates}),
         POLICY,
     )
 
     assert build_spot_input(classified) is None
 
 
-def test_built_payload_and_target_metadata_are_snapshots(spot: CongestionSpotInput) -> None:
+@pytest.mark.asyncio
+async def test_built_payload_and_target_metadata_are_snapshots(spot: CongestionSpotInput) -> None:
     prepared = prepare_spot(spot, WINDOW_END)
-    classified = classify_spot(
+    classified = await classify_spot(
         prepared,
-        lambda item: {(target.signal_type, target.signal_id): 0.9 for target in item.candidates},
+        AsyncMock(side_effect=lambda item: {(target.signal_type, target.signal_id): 0.9 for target in item.candidates}),
         POLICY,
     )
     result = build_spot_input(classified)

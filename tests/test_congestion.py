@@ -233,7 +233,7 @@ def test_text_length_boundaries(
 
 def test_empty_post_bundles_rejected_before_analysis(payload: dict[str, Any]) -> None:
     class UnexpectedAnalyzer:
-        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+        async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
             pytest.fail("빈 묶음이 분석기에 전달됨")
 
     app.dependency_overrides[get_analyzer] = UnexpectedAnalyzer
@@ -306,7 +306,7 @@ def test_analyzer_receives_one_message_and_preserves_input(
     calls: list[CongestionAnalysisMessage] = []
 
     class ReplacementAnalyzer:
-        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+        async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
             calls.append(message)
             return CongestionResult(congestion_level="LOW", report_count=2, causes=[])
 
@@ -321,16 +321,17 @@ def test_analyzer_receives_one_message_and_preserves_input(
     assert response.json()["result"]["congestion_level"] == "LOW"
 
 
-def test_unexpected_error_is_not_converted_to_failed_result(
+@pytest.mark.asyncio
+async def test_unexpected_error_is_not_converted_to_failed_result(
     payload: dict[str, Any],
 ) -> None:
     class UnexpectedAnalyzer:
-        def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+        async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
             raise RuntimeError("unexpected analyzer bug")
 
     message = CongestionAnalysisMessage.model_validate(payload)
     with pytest.raises(RuntimeError, match="unexpected analyzer bug"):
-        analyze_message(message, UnexpectedAnalyzer())
+        await analyze_message(message, UnexpectedAnalyzer())
 
 
 def test_malformed_json_uses_common_request_error() -> None:

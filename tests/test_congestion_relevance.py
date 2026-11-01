@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -55,13 +56,14 @@ def prepared() -> PreparedSpot:
         (1.0, "RELATED"),
     ],
 )
-def test_only_probabilities_below_explicit_exclusion_threshold_are_dropped(
+@pytest.mark.asyncio
+async def test_only_probabilities_below_explicit_exclusion_threshold_are_dropped(
     prepared: PreparedSpot, probability: float, expected: str
 ) -> None:
     policy = relevance.RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8)
-    result = relevance.classify_spot(
+    result = await relevance.classify_spot(
         prepared,
-        lambda _: {("post", 1): probability, ("comment", 1): 0.9, ("comment", 2): 0.0},
+        AsyncMock(side_effect=lambda _: {("post", 1): probability, ("comment", 1): 0.9, ("comment", 2): 0.0}),
         policy,
     )
 
@@ -72,10 +74,11 @@ def test_only_probabilities_below_explicit_exclusion_threshold_are_dropped(
     )
 
 
-def test_score_order_cannot_reassign_post_and_comment_identity(prepared: PreparedSpot) -> None:
-    result = relevance.classify_spot(
+@pytest.mark.asyncio
+async def test_score_order_cannot_reassign_post_and_comment_identity(prepared: PreparedSpot) -> None:
+    result = await relevance.classify_spot(
         prepared,
-        lambda _: {("comment", 2): 0.0, ("comment", 1): 0.5, ("post", 1): 0.9},
+        AsyncMock(side_effect=lambda _: {("comment", 2): 0.0, ("comment", 1): 0.5, ("post", 1): 0.9}),
         relevance.RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8),
     )
 
@@ -95,13 +98,14 @@ def test_score_order_cannot_reassign_post_and_comment_identity(prepared: Prepare
         {("post", 1): 0.9, ("comment", 1): 0.5, ("comment", 2): 0.0, ("post", 9): 0.1},
     ],
 )
-def test_missing_or_extra_score_ids_are_rejected(
+@pytest.mark.asyncio
+async def test_missing_or_extra_score_ids_are_rejected(
     prepared: PreparedSpot, scores: dict[relevance.SignalKey, float]
 ) -> None:
     with pytest.raises(relevance.RelevanceOutputInvalid):
-        relevance.classify_spot(
+        await relevance.classify_spot(
             prepared,
-            lambda _: scores,
+            AsyncMock(side_effect=lambda _: scores),
             relevance.RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8),
         )
 
@@ -109,13 +113,14 @@ def test_missing_or_extra_score_ids_are_rejected(
 @pytest.mark.parametrize(
     "probability", [-0.01, 1.01, float("nan"), float("inf"), True, "0.1", 10**1000]
 )
-def test_invalid_score_is_not_treated_as_irrelevant(
+@pytest.mark.asyncio
+async def test_invalid_score_is_not_treated_as_irrelevant(
     prepared: PreparedSpot, probability: Any
 ) -> None:
     with pytest.raises(relevance.RelevanceOutputInvalid):
-        relevance.classify_spot(
+        await relevance.classify_spot(
             prepared,
-            lambda _: {("post", 1): probability, ("comment", 1): 0.5, ("comment", 2): 0.0},
+            AsyncMock(side_effect=lambda _: {("post", 1): probability, ("comment", 1): 0.5, ("comment", 2): 0.0}),
             relevance.RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8),
         )
 
@@ -139,16 +144,17 @@ def test_invalid_thresholds_are_rejected(exclude_below: float, related_at_or_abo
         )
 
 
-def test_empty_spot_skips_scoring() -> None:
+@pytest.mark.asyncio
+async def test_empty_spot_skips_scoring() -> None:
     prepared = prepare_spot(
         CongestionSpotInput(spot_id=1, post_bundles=[]),
         datetime.fromisoformat("2026-10-12T12:00:00+09:00"),
     )
 
-    def unexpected(_prepared: PreparedSpot) -> dict[relevance.SignalKey, float]:
+    async def unexpected(_prepared: PreparedSpot) -> dict[relevance.SignalKey, float]:
         pytest.fail("빈 후보에 대한 분류기가 호출됨")
 
-    result = relevance.classify_spot(
+    result = await relevance.classify_spot(
         prepared,
         unexpected,
         relevance.RelevancePolicy(exclude_below=0.2, related_at_or_above=0.8),

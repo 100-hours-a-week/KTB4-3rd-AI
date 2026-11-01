@@ -1,6 +1,6 @@
 """혼잡 관련성 확률을 검증하고 무관한 후보만 제외한다."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from math import isfinite
 from typing import Literal
@@ -9,7 +9,7 @@ from .preprocessor import CandidateSignal, PreparedSpot
 
 SignalKey = tuple[Literal["post", "comment"], int]
 RelevanceStatus = Literal["RELATED", "UNRELATED", "UNCERTAIN"]
-RelevanceScorer = Callable[[PreparedSpot], Mapping[SignalKey, float | None]]
+RelevanceScorer = Callable[[PreparedSpot], Awaitable[Mapping[SignalKey, float | None]]]
 
 
 class RelevanceOutputInvalid(ValueError):
@@ -63,14 +63,14 @@ class ClassifiedSpot:
         return tuple(item.candidate for item in self.decisions if item.status != "UNRELATED")
 
 
-def classify_spot(
+async def classify_spot(
     prepared: PreparedSpot, score: RelevanceScorer, policy: RelevancePolicy
 ) -> ClassifiedSpot:
     """완전한 확률 응답을 확인한 뒤 요청 순서대로 후보를 선별한다."""
     if not prepared.candidates:
         return ClassifiedSpot(prepared=prepared, decisions=())
 
-    scores = score(prepared)
+    scores = await score(prepared)
     expected = {(item.signal_type, item.signal_id) for item in prepared.candidates}
     if set(scores) != expected:
         raise RelevanceOutputInvalid(
