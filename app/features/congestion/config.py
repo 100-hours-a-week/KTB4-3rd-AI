@@ -15,6 +15,7 @@ class ModelEndpoint:
     url: str
     model: str
     key_env: str
+    provider: str = "openai"
 
 
 @dataclass(frozen=True)
@@ -26,9 +27,14 @@ class CallPolicy:
     concurrency: int
 
 
-JUDGE_ENDPOINT = ModelEndpoint(
-    "https://api.openai.com/v1/responses", "gpt-6-luna", "OPENAI_API_KEY_2"
+JUDGE_ENDPOINTS = (
+    ModelEndpoint("https://api.openai.com/v1/responses", "gpt-6-luna", "OPENAI_API_KEY_2"),
+    ModelEndpoint(
+        "https://api.anthropic.com/v1/messages", "claude-haiku-5-5",
+        "ANTHROPIC_API_KEY", "anthropic",
+    ),
 )
+JUDGE_MAX_TOKENS = 8192
 DECISIONS_ENDPOINT = ModelEndpoint(
     "https://api.openai.com/v1/decisions", "gpt-6-luna", "OPENAI_API_KEY_2"
 )

@@ -185,3 +185,37 @@ async def test_upstream_failure_is_not_retried(model_input: SpotLLMInput) -> Non
     with pytest.raises(UpstreamError):
         await assess_spot(model_input, fail)
     assert calls == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", [False, True])
+async def test_provider_output_validation_keeps_model_and_does_not_fallback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    model_input: SpotLLMInput, invalid: bool,
+) -> None:
+    import httpx
+
+    from app.features.congestion import model_client
+
+    monkeypatch.setenv("OPENAI_API_KEY_2", "fake")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake")
+    calls = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.host)
+        body = {"signals": []} if invalid else output()
+        return httpx.Response(200, json={"output": [{
+            "type": "message", "content": [{"type": "output_text", "text": json.dumps(body)}],
+        }]})
+
+    async def complete(prompt: str) -> str:
+        return await model_client.complete_json(prompt, transport=httpx.MockTransport(respond))
+
+    if invalid:
+        with pytest.raises(CongestionParseFailed):
+            await assess_spot(model_input, complete)
+        assert "congestion judge invalid: reason=id_mismatch model=gpt-6-luna" in caplog.text
+    else:
+        await assess_spot(model_input, complete)
+    assert calls == ["api.openai.com"]
+    assert model_client.judge_model.get() == "gpt-6-luna"

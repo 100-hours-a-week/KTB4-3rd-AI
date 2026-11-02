@@ -230,7 +230,9 @@ async def test_analysis_logs_and_request_context(
             assert not any(log.startswith("congestion judge done:") for log in logs)
         else:
             assert any(log.startswith("congestion relevance done:") for log in logs)
-            assert any(log.startswith("congestion judge done:") for log in logs)
+            assert any(
+                log.startswith("congestion judge done:") and "model=-" in log for log in logs
+            )
             assert any("decision=UNIQUE_TOP" in log for log in logs)
 
 

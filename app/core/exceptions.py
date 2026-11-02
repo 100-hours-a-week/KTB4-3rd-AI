@@ -13,7 +13,7 @@
 
 # 오류 응답 로그(request failed)에 붙는 확인 안내. 같은 request_id의 앞선 로그에 구체 원인이 있다.
 HINTS = {
-    "CONGESTION_PARSE_FAILED": "OPENAI_API_KEY_2 판정 출력 오류. 같은 request_id의 judge invalid reason 확인",
+    "CONGESTION_PARSE_FAILED": "판정 모델 출력 오류. 같은 request_id의 judge invalid reason과 model 확인",
     "REQUEST_INVALID": "요청 JSON에 문자열 image_URL이 있는지 확인",
     "IMAGE_FETCH_FAILED": "image_URL이 5초 안에 리다이렉트 없이 200을 주는지 확인(presigned 만료, 권한, 주소)",
     "IMAGE_SIZE_INVALID": "이미지가 1바이트 이상 5MB 이하인지 확인",

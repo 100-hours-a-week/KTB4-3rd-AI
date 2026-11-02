@@ -3,6 +3,7 @@
 import asyncio
 import os
 import time
+from contextvars import ContextVar
 from math import isfinite
 from typing import Any
 
@@ -13,29 +14,104 @@ from ...core.logging import get_logger, http_reason
 from .config import (
     DECISIONS_ENDPOINT,
     DECISIONS_POLICY,
-    JUDGE_ENDPOINT,
+    JUDGE_ENDPOINTS,
+    JUDGE_MAX_TOKENS,
     JUDGE_POLICY,
     CallPolicy,
     ModelEndpoint,
 )
+from .extractor import BundleDecision
 
 logger = get_logger(__name__)
+judge_model: ContextVar[str] = ContextVar("judge_model", default="-")
+
+
+def _judge_schema(node: Any) -> Any:
+    """Pydantic 스키마에서 두 회사가 함께 지원하는 제약만 남긴다."""
+    if isinstance(node, list):
+        return [_judge_schema(value) for value in node]
+    if not isinstance(node, dict):
+        return node
+    result = {key: _judge_schema(value) for key, value in node.items() if key not in {
+        "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum",
+        "exclusiveMaximum", "minItems", "maxItems", "multipleOf", "pattern", "format",
+    }}
+    if result.get("type") == "object":
+        result["additionalProperties"] = False
+        result["required"] = list(result["properties"])
+    return result
+
+
+JUDGE_OUTPUT_SCHEMA = _judge_schema(BundleDecision.model_json_schema())
 
 _JUDGE_SEMAPHORE = asyncio.Semaphore(JUDGE_POLICY.concurrency)
 _DECISIONS_SEMAPHORE = asyncio.Semaphore(DECISIONS_POLICY.concurrency)
 
 
-async def complete_json(prompt: str, *, transport: httpx.AsyncBaseTransport | None = None) -> str:
-    body = {
-        "model": JUDGE_ENDPOINT.model,
-        "input": [
-            {"role": "user", "content": [{"type": "input_text", "text": prompt}]}
-        ],
-        "text": {"format": {"type": "json_object"}},
+def _headers(endpoint: ModelEndpoint, key: str) -> dict[str, str]:
+    if endpoint.provider == "anthropic":
+        return {"x-api-key": key, "anthropic-version": "2023-06-01"}
+    return {"Authorization": f"Bearer {key}"}
+
+
+def _judge_body(endpoint: ModelEndpoint, prompt: str) -> dict[str, Any]:
+    if endpoint.provider == "anthropic":
+        return {
+            "model": endpoint.model, "max_tokens": JUDGE_MAX_TOKENS,
+            "messages": [{"role": "user", "content": prompt}],
+            "output_config": {"format": {"type": "json_schema", "schema": JUDGE_OUTPUT_SCHEMA}},
+        }
+    return {
+        "model": endpoint.model,
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": prompt}]}],
+        "text": {"format": {"type": "json_schema", "name": "congestion_judgement",
+                            "schema": JUDGE_OUTPUT_SCHEMA, "strict": True}},
     }
+
+
+def _judge_text(endpoint: ModelEndpoint, data: dict[str, Any]) -> str:
+    if endpoint.provider == "anthropic":
+        if data.get("stop_reason") in {"refusal", "max_tokens"}:
+            raise ValueError("판정 응답이 거부되거나 잘림")
+        text = "".join(part["text"] for part in data["content"] if part["type"] == "text")
+    else:
+        text = "".join(
+            part["text"] for item in data["output"] if item["type"] == "message"
+            for part in item["content"] if part["type"] == "output_text"
+        )
+    if not text.strip():
+        raise ValueError("판정 응답이 비어 있음")
+    return text
+
+
+async def complete_json(prompt: str, *, transport: httpx.AsyncBaseTransport | None = None) -> str:
+    judge_model.set("-")
+    failure: ModelNotReady | UpstreamError = ModelNotReady()
     async with _JUDGE_SEMAPHORE:
-        data = await _call("responses", JUDGE_ENDPOINT, JUDGE_POLICY, body, transport)
-    return str(data["output_text"])
+        for index, endpoint in enumerate(JUDGE_ENDPOINTS):
+            try:
+                data = await _call(
+                    "responses", endpoint, JUDGE_POLICY, _judge_body(endpoint, prompt), transport
+                )
+            except (ModelNotReady, UpstreamError) as exc:
+                if isinstance(exc, UpstreamError):
+                    failure = exc
+                cause = exc.__cause__
+                if isinstance(cause, httpx.HTTPStatusError):
+                    status = cause.response.status_code
+                    if 400 <= status < 500 and status != 429:
+                        raise
+                reason = ("missing_key" if isinstance(exc, ModelNotReady) else
+                          http_reason(cause) if isinstance(cause, httpx.HTTPError) else "not_json")
+                if index + 1 < len(JUDGE_ENDPOINTS):
+                    logger.warning(
+                        "congestion model fallback: api=responses from=%s to=%s reason=%s",
+                        endpoint.model, JUDGE_ENDPOINTS[index + 1].model, reason,
+                    )
+            else:
+                judge_model.set(endpoint.model)
+                return str(data["output_text"])
+    raise failure
 
 
 async def decide(
@@ -70,7 +146,7 @@ async def _call(
     reason = "not_json"
     try:
         async with httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {key}"},
+            headers=_headers(endpoint, key),
             timeout=policy.timeout,
             transport=transport,
         ) as client:
@@ -120,16 +196,7 @@ async def _call(
             usage = {}
         if api == "responses":
             reason = "empty_output"
-            text = "".join(
-                part["text"]
-                for item in data["output"]
-                if item["type"] == "message"
-                for part in item["content"]
-                if part["type"] == "output_text"
-            )
-            if not text.strip():
-                raise ValueError("output text is empty")
-            data = {"output_text": text}
+            data = {"output_text": _judge_text(endpoint, data)}
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
         if isinstance(exc, httpx.HTTPError):
             reason = http_reason(exc)

@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.exceptions import ModelNotReady, UpstreamError
-from app.features.congestion import extractor
+from app.features.congestion import extractor, model_client
 from app.features.congestion.extractor import ModelOutputInvalid
 from app.features.congestion.models import CongestionAnalysisMessage
 from app.features.congestion.preprocessor import PreparedSpot
@@ -23,7 +23,7 @@ async def test_congestion_uses_model_client(monkeypatch: pytest.MonkeyPatch) -> 
         assert prompt == "prompt"
         return '{"signals": []}'
 
-    monkeypatch.setattr(extractor.model_client, "complete_json", complete)
+    monkeypatch.setattr(model_client, "complete_json", complete)
     assert await extractor.call_api_model("prompt") == '{"signals": []}'
 
 

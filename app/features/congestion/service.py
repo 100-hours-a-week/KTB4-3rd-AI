@@ -10,6 +10,7 @@ import httpx
 
 from ...core.exceptions import AppError, ModelNotReady, UpstreamError
 from ...core.logging import SAFE_ID, get_logger, http_reason, request_id
+from . import model_client
 from .aggregator import aggregate_with_trace
 from .config import RELEVANCE_KEYWORDS, RELEVANCE_POLICY
 from .decisions import DecisionsRelevanceScorer
@@ -124,10 +125,11 @@ class LLMCongestionAnalyzer:
                 started = monotonic()
                 signals = (await assess_spot(model_input, self._complete)).signals
                 logger.info(
-                    "congestion judge done: targets=%s signals=%s ms=%s",
+                    "congestion judge done: targets=%s signals=%s ms=%s model=%s",
                     len(model_input.targets),
                     len(signals),
                     int((monotonic() - started) * 1000),
+                    model_client.judge_model.get(),
                 )
         trace = aggregate_with_trace(signals)
         result = trace.result

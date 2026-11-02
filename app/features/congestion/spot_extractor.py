@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from ...core.exceptions import CongestionParseFailed
 from ...core.logging import get_logger
+from . import model_client
 from .extractor import (
     JUDGMENT_RULES,
     AssessedSignal,
@@ -57,6 +58,7 @@ async def assess_spot(
     """전체 대상·값을 검증한 경우에만 원본 순서로 판정을 반환한다."""
     if model_input is None:
         return AssessedSpot(signals=())
+    model_client.judge_model.set("-")
     reason = "not_json"
     try:
         raw = await complete(SPOT_PROMPT + model_input.payload)
@@ -73,7 +75,9 @@ async def assess_spot(
         if len(by_key) != len(decision.signals) or set(by_key) != expected:
             raise ModelOutputInvalid("api model output IDs do not match targets")
     except ModelOutputInvalid as exc:
-        logger.warning("congestion judge invalid: reason=%s", reason)
+        logger.warning(
+            "congestion judge invalid: reason=%s model=%s", reason, model_client.judge_model.get()
+        )
         raise CongestionParseFailed() from exc
 
     assessed = tuple(

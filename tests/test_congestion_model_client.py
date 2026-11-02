@@ -15,6 +15,7 @@ from app.features.congestion import model_client
 @pytest.fixture(autouse=True)
 def model_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY_2", "secret-key")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(model_client.asyncio, "sleep", AsyncMock())
 
 
@@ -34,7 +35,8 @@ async def test_complete_json_returns_text_and_logs_usage(
                     "content": [{"type": "input_text", "text": "비밀본문"}],
                 }
             ],
-            "text": {"format": {"type": "json_object"}},
+            "text": {"format": {"type": "json_schema", "name": "congestion_judgement",
+                                "schema": model_client.JUDGE_OUTPUT_SCHEMA, "strict": True}},
         }
         return httpx.Response(
             200,
@@ -295,3 +297,117 @@ async def test_retry_after_seconds_obey_policy_timeout(
         assert calls == 2
         delay = timeout if header == "equal" else float(header) if header in {"2.5", "0"} else 1.0
         sleep.assert_awaited_once_with(delay)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [503, 429, "timeout", "connect", "format", "missing"])
+async def test_judge_fallback_uses_shared_schema_and_provider_contract(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, failure: int | str,
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-secret")
+    if failure == "missing":
+        monkeypatch.delenv("OPENAI_API_KEY_2")
+    calls: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.host)
+        body = json.loads(request.content)
+        if request.url.host == "api.openai.com":
+            assert body["text"]["format"]["schema"] == model_client.JUDGE_OUTPUT_SCHEMA
+            if failure == "timeout":
+                raise httpx.ReadTimeout("private", request=request)
+            if failure == "connect":
+                raise httpx.ConnectError("private", request=request)
+            return httpx.Response(200, json={}) if failure == "format" else httpx.Response(failure)
+        assert str(request.url) == "https://api.anthropic.com/v1/messages"
+        assert request.headers["x-api-key"] == "claude-secret"
+        assert request.headers["anthropic-version"] == "2023-06-01"
+        assert "Authorization" not in request.headers
+        assert "anthropic-beta" not in request.headers
+        assert body == {
+            "model": "claude-haiku-5-5", "max_tokens": 8192,
+            "messages": [{"role": "user", "content": "prompt"}],
+            "output_config": {"format": {
+                "type": "json_schema", "schema": model_client.JUDGE_OUTPUT_SCHEMA,
+            }},
+        }
+        return httpx.Response(200, json={
+            "stop_reason": "end_turn", "content": [{"type": "text", "text": '{"signals":[]}'}],
+        })
+
+    with caplog.at_level(logging.INFO):
+        assert await model_client.complete_json("prompt", transport=httpx.MockTransport(respond)) == (
+            '{"signals":[]}'
+        )
+    assert calls == ["api.openai.com"] * (2 if failure in {503, 429} else 0 if failure == "missing" else 1) + ["api.anthropic.com"]
+    assert model_client.judge_model.get() == "claude-haiku-5-5"
+    assert "congestion model fallback: api=responses from=gpt-6-luna to=claude-haiku-5-5" in caplog.text
+    assert "claude-secret" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [400, 401, 403, 404])
+async def test_judge_4xx_does_not_fallback(monkeypatch: pytest.MonkeyPatch, status: int) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-secret")
+    calls = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.host)
+        return httpx.Response(status)
+
+    with pytest.raises(UpstreamError) as caught:
+        await model_client.complete_json("prompt", transport=httpx.MockTransport(respond))
+    assert calls == ["api.openai.com"]
+    assert caught.value.__cause__.response.status_code == status
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stop_reason", ["max_tokens", "refusal", "server_error", "missing_key"])
+async def test_judge_both_fail_or_preserve_previous_failure(
+    monkeypatch: pytest.MonkeyPatch, stop_reason: str,
+) -> None:
+    if stop_reason != "missing_key":
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-secret")
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.openai.com":
+            return httpx.Response(503)
+        if stop_reason == "server_error":
+            return httpx.Response(502)
+        return httpx.Response(200, json={
+            "stop_reason": stop_reason, "content": [{"type": "text", "text": "{}"}],
+        })
+
+    with pytest.raises(UpstreamError) as caught:
+        await model_client.complete_json("prompt", transport=httpx.MockTransport(respond))
+    cause = caught.value.__cause__
+    if stop_reason == "missing_key":
+        assert cause.response.status_code == 503
+    elif stop_reason == "server_error":
+        assert cause.response.status_code == 502
+    else:
+        assert isinstance(cause, ValueError)
+
+
+def test_judge_schema_has_common_constraints() -> None:
+    from app.features.congestion.extractor import BundleDecision
+
+    forbidden = {"minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum",
+                 "exclusiveMaximum", "minItems", "maxItems", "multipleOf", "pattern", "format"}
+
+    def check(node: Any) -> None:
+        if isinstance(node, dict):
+            assert not forbidden.intersection(node)
+            if node.get("type") == "object":
+                assert node["additionalProperties"] is False
+                assert set(node["required"]) == set(node["properties"])
+            for value in node.values():
+                check(value)
+        elif isinstance(node, list):
+            for value in node:
+                check(value)
+
+    check(model_client.JUDGE_OUTPUT_SCHEMA)
+    signal = model_client.JUDGE_OUTPUT_SCHEMA["$defs"]["SignalDecision"]
+    assert {"type": "null"} in signal["properties"]["congestion_level"]["anyOf"]
+    assert "exclusiveMinimum" in BundleDecision.model_json_schema()["$defs"]["SignalDecision"]["properties"]["signal_id"]

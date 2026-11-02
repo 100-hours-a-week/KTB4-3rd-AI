@@ -6,7 +6,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from . import model_client
 from .aggregator import Stage
 from .models import CauseCode, PositiveId
 
@@ -112,6 +111,9 @@ CONSTRUCTION(공사·시설 작업), DEMONSTRATION(집회·시위·행진).
 
 
 async def call_api_model(prompt: str) -> str:
+    # 모델 호출 파일이 BundleDecision을 읽으므로 순환 import를 피한다.
+    from . import model_client
+
     output = await model_client.complete_json(prompt)
     if not isinstance(output, str):
         raise ModelOutputInvalid("api model did not return text")
