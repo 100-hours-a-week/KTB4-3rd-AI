@@ -87,11 +87,14 @@ result = await analyze_message(message, analyzer)
 | 실패 위치 | 코드 / HTTP 상태 | 뜻 | consumer 재시도 권고 |
 | --- | --- | --- | --- |
 | 요청 검증 | `REQUEST_INVALID` / 422 | consumer에서는 `ValidationError`. 결과 없이 원본을 DLT로 보냄 | 안 함. 요청 수정 필요 |
-| 관련성 선별 | `CONGESTION_DECISIONS_FAILED` / 502 | Decisions 호출 또는 응답 검증 실패 | 일시적 호출 실패일 때만 검토. 응답 형식·ID·확률 오류는 제외 |
+| 관련성 선별 | 없음 | Decisions 호출·키 준비·응답 검증 실패 시 키워드 폴백으로 계속 분석 | 안 함 |
 | LLM 판정 호출 | `UPSTREAM_FAILED` / 502 | 외부 호출 또는 응답 형식 실패 | 일시적 호출 실패일 때만 검토. 인증·응답 형식 오류는 제외 |
-| 모델 준비 | `MODEL_NOT_READY` / 503 | `OPENAI_API_KEY_2`가 없거나 비어 있음 | 키 주입 문제를 해결한 뒤, 다음 구간 전에 끝날 때만 검토 |
+| 판정 모델 준비 | `MODEL_NOT_READY` / 503 | `OPENAI_API_KEY_2`가 없거나 비어 있음 | 키 주입 문제를 해결한 뒤, 다음 구간 전에 끝날 때만 검토 |
 | 판정 출력 검증 | `CONGESTION_PARSE_FAILED` / 502 | JSON·값 형식 오류 또는 대상 ID 불일치 | 안 함 |
 | 예상 밖 예외 | `INTERNAL` / 500 | HTTP에서 변환되는 코드. consumer에는 원래 예외가 전달됨. 위 예시처럼 실패 결과로 처리 | 안 함. 로그의 스택 트레이스로 원인 확인 |
+
+관련성 선별 폴백은 `congestion relevance fallback` 경고 로그로 확인한다.
+키워드가 있는 후보만 판정하며, 전부 무관하면 `UNKNOWN` 성공 결과를 만든다.
 
 `analyze_message`는 분석 전체를 재시도하지 않고 예외를 올린다.
 실패하면 consumer가 `failure_result(message)`를 호출한다. 예상 밖 예외도 같은 방식으로 처리해,
@@ -111,7 +114,7 @@ result = await analyze_message(message, analyzer)
 429·5xx 응답이면 기본 1초 뒤 한 번 더 보낸다. 429의 `Retry-After`가 유효한 초 값이면
 그만큼 기다리며, 정책의 `timeout`보다 길면 기다리지 않고 실패한다. 시간 초과·연결 실패·그 밖의 4xx·응답 형식
 오류는 AI 내부에서 재시도하지 않는다. consumer 재시도는 Spring BE가 결정하되,
-위 표의 세 코드(`UPSTREAM_FAILED`, `CONGESTION_DECISIONS_FAILED`, `MODEL_NOT_READY`)에
+위 표의 두 코드(`UPSTREAM_FAILED`, `MODEL_NOT_READY`)에
 한정하고 다음 구간 전에 끝낼 수 있을 때만 권한다. 코드만으로 일시적 오류를 구분할 수는
 없으므로 같은 요청의 `reason`, `status`, `error` 로그도 확인한다.
 실패한 구간을 다음 구간 데이터에 합치지 않는다.
@@ -162,3 +165,6 @@ HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요�
 - API마다 프로세스 전체에서 Semaphore 하나를 공유한다. 임시 동시 호출 수는
   `config.py`의 `JUDGE_POLICY.concurrency=5`, `DECISIONS_POLICY.concurrency=10`이다.
   재시도 대기 중에도 자리를 유지하며 취소·실패·완료 시 반환한다. 대기열 시간은 `timeout`에 포함되지 않는다.
+- 2026-11-02 · 11단계: Decisions 호출·키 준비·응답 검증 실패는 키워드 폴백으로 처리한다.
+  관련성 선별 실패 코드는 없어졌으며, 모니터 담당은 `congestion relevance fallback` 경고를 확인한다.
+  이때 `congestion relevance done`은 남기지 않는다. 판정 호출 실패 처리는 기존과 같다.

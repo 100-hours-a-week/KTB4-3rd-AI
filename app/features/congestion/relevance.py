@@ -95,3 +95,15 @@ async def classify_spot(
             status = "UNCERTAIN"
         decisions.append(RelevanceDecision(candidate, probability, status))
     return ClassifiedSpot(prepared=prepared, decisions=tuple(decisions))
+
+
+def classify_by_keywords(prepared: PreparedSpot, keywords: tuple[str, ...]) -> ClassifiedSpot:
+    """후보의 제목·본문에서 공백을 지우고 키워드가 하나라도 있는지 확인한다."""
+    decisions: list[RelevanceDecision] = []
+    for candidate in prepared.candidates:
+        text = "".join(((candidate.title or "") + candidate.content).split())
+        status: RelevanceStatus = (
+            "RELATED" if any(keyword in text for keyword in keywords) else "UNRELATED"
+        )
+        decisions.append(RelevanceDecision(candidate, None, status))
+    return ClassifiedSpot(prepared=prepared, decisions=tuple(decisions))

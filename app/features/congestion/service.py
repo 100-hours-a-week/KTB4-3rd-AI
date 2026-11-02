@@ -8,10 +8,10 @@ from uuid import uuid4
 
 import httpx
 
-from ...core.exceptions import AppError, CongestionDecisionsFailed, UpstreamError
+from ...core.exceptions import AppError, ModelNotReady, UpstreamError
 from ...core.logging import SAFE_ID, get_logger, http_reason, request_id
 from .aggregator import aggregate_with_trace
-from .config import RELEVANCE_POLICY
+from .config import RELEVANCE_KEYWORDS, RELEVANCE_POLICY
 from .decisions import DecisionsRelevanceScorer
 from .extractor import AssessedSignal, call_api_model
 from .models import (
@@ -27,6 +27,7 @@ from .relevance import (
     RelevanceOutputInvalid,
     RelevancePolicy,
     RelevanceScorer,
+    classify_by_keywords,
     classify_spot,
 )
 from .spot_extractor import assess_spot
@@ -80,37 +81,39 @@ class LLMCongestionAnalyzer:
             try:
                 score, policy = self._configured_scorer()
                 classified = await classify_spot(prepared, score, policy)
-            except (UpstreamError, RelevanceOutputInvalid) as exc:
+            except (UpstreamError, ModelNotReady, RelevanceOutputInvalid) as exc:
                 cause = exc.__cause__
                 reason = (
                     exc.reason
                     if isinstance(exc, RelevanceOutputInvalid)
                     else (
-                        http_reason(cause)
+                        "missing_key"
+                        if isinstance(exc, ModelNotReady)
+                        else http_reason(cause)
                         if isinstance(cause, httpx.HTTPError)
                         else "not_json"
                     )
                 )
+                classified = classify_by_keywords(prepared, RELEVANCE_KEYWORDS)
                 logger.warning(
-                    "congestion decisions failed: reason=%s status=%s error=%s ms=%s",
+                    "congestion relevance fallback: reason=%s method=keyword "
+                    "candidates=%s related=%s unrelated=%s",
                     reason,
-                    cause.response.status_code
-                    if isinstance(cause, httpx.HTTPStatusError)
-                    else "-",
-                    type(exc).__name__,
+                    len(prepared.candidates),
+                    sum(d.status == "RELATED" for d in classified.decisions),
+                    sum(d.status == "UNRELATED" for d in classified.decisions),
+                )
+            else:
+                logger.info(
+                    "congestion relevance done: candidates=%s related=%s uncertain=%s "
+                    "unrelated=%s refused=%s ms=%s",
+                    len(prepared.candidates),
+                    sum(d.status == "RELATED" for d in classified.decisions),
+                    sum(d.status == "UNCERTAIN" for d in classified.decisions),
+                    sum(d.status == "UNRELATED" for d in classified.decisions),
+                    sum(d.probability is None for d in classified.decisions),
                     int((monotonic() - started) * 1000),
                 )
-                raise CongestionDecisionsFailed() from exc
-            logger.info(
-                "congestion relevance done: candidates=%s related=%s uncertain=%s "
-                "unrelated=%s refused=%s ms=%s",
-                len(prepared.candidates),
-                sum(d.status == "RELATED" for d in classified.decisions),
-                sum(d.status == "UNCERTAIN" for d in classified.decisions),
-                sum(d.status == "UNRELATED" for d in classified.decisions),
-                sum(d.probability is None for d in classified.decisions),
-                int((monotonic() - started) * 1000),
-            )
             model_input = build_spot_input(classified)
             if model_input is None:
                 logger.info(

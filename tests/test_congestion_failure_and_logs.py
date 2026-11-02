@@ -1,4 +1,4 @@
-"""단계별 HTTP 실패와 요청 안팎의 분석 로그를 검증한다."""
+"""관련성 선별 폴백·판정 실패와 요청 안팎의 분석 로그를 검증한다."""
 
 import json
 import re
@@ -25,23 +25,24 @@ from app.main import app
 @pytest.mark.parametrize(
     ("stage", "case", "code", "reason"),
     [
-        ("relevance", "timeout", "CONGESTION_DECISIONS_FAILED", "timeout"),
-        ("relevance", "connect", "CONGESTION_DECISIONS_FAILED", "connect"),
-        ("relevance", "401", "CONGESTION_DECISIONS_FAILED", "http_4xx"),
-        ("relevance", "503", "CONGESTION_DECISIONS_FAILED", "http_5xx"),
-        ("relevance", "not_json", "CONGESTION_DECISIONS_FAILED", "not_json"),
-        ("relevance", "id_mismatch", "CONGESTION_DECISIONS_FAILED", "id_mismatch"),
+        ("relevance", "timeout", "SUCCESS", "timeout"),
+        ("relevance", "connect", "SUCCESS", "connect"),
+        ("relevance", "401", "SUCCESS", "http_4xx"),
+        ("relevance", "503", "SUCCESS", "http_5xx"),
+        ("relevance", "not_json", "SUCCESS", "not_json"),
+        ("relevance", "missing_key", "SUCCESS", "missing_key"),
+        ("relevance", "id_mismatch", "SUCCESS", "id_mismatch"),
         (
             "relevance",
             "bad_probability",
-            "CONGESTION_DECISIONS_FAILED",
+            "SUCCESS",
             "bad_probability",
         ),
         ("judge", "not_json", "CONGESTION_PARSE_FAILED", "not_json"),
         ("judge", "id_mismatch", "CONGESTION_PARSE_FAILED", "id_mismatch"),
     ],
 )
-def test_stage_http_failure_and_reason(
+def test_stage_http_outcome_and_reason(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     stage: str,
@@ -53,6 +54,8 @@ def test_stage_http_failure_and_reason(
         (Path(__file__).parent / "fixtures/congestion/spot-preview.json").read_text()
     )
     monkeypatch.setenv("OPENAI_API_KEY_2", "test-key")
+    if case == "missing_key":
+        monkeypatch.delenv("OPENAI_API_KEY_2")
     monkeypatch.setattr(
         "app.features.congestion.model_client.asyncio.sleep", AsyncMock()
     )
@@ -84,12 +87,21 @@ def test_stage_http_failure_and_reason(
     async def related(prepared: Any) -> dict[Any, float]:
         return {(c.signal_type, c.signal_id): 0.9 for c in prepared.candidates}
 
+    async def complete(prompt: str) -> str:
+        if stage == "judge":
+            return "private body" if case == "not_json" else '{"signals": []}'
+        targets = json.loads(prompt.split("입력 JSON:\n", 1)[1])["targets"]
+        assert [(t["signal_type"], t["signal_id"]) for t in targets] == [
+            ("post", 1), ("comment", 1), ("post", 3)
+        ]
+        return json.dumps(data["model_output"])
+
     analyzer = LLMCongestionAnalyzer(
         score=DecisionsRelevanceScorer(transport=httpx.MockTransport(respond))
         if stage == "relevance"
         else related,
         policy=RelevancePolicy(0.2, 0.8),
-        complete=AsyncMock(side_effect=lambda _: "private body" if case == "not_json" else '{"signals": []}'),
+        complete=complete,
     )
     app.dependency_overrides[get_analyzer] = lambda: analyzer
     try:
@@ -100,11 +112,17 @@ def test_stage_http_failure_and_reason(
         )
     finally:
         app.dependency_overrides.pop(get_analyzer, None)
-    assert response.status_code == 502
-    assert response.json()["code"] == code
+    if stage == "relevance":
+        assert response.status_code == 200
+        assert response.json()["analysis_status"] == "SUCCESS"
+        assert response.json()["result"]["congestion_level"] == "LOW"
+        assert response.json()["result"]["report_count"] == 1
+    else:
+        assert response.status_code == 502
+        assert response.json()["code"] == code
     assert "private" not in response.text
     head = (
-        "congestion decisions failed"
+        "congestion relevance fallback"
         if stage == "relevance"
         else "congestion judge invalid"
     )
@@ -114,16 +132,22 @@ def test_stage_http_failure_and_reason(
     assert logs[0].endswith(" request_id=http-test")
     assert "private" not in logs[0]
     if stage == "relevance":
-        assert f"status={case if case.isdigit() else '-'}" in logs[0]
-        assert re.search(r"error=\S+ ms=\d+", logs[0])
+        assert "method=keyword candidates=5 related=3 unrelated=2" in logs[0]
+        assert all(r.levelname == "WARNING" for r in caplog.records
+                   if r.getMessage().startswith(head))
+        assert not any(r.getMessage().startswith("congestion relevance done:")
+                       for r in caplog.records)
     failed = [
         r.getMessage()
         for r in caplog.records
         if r.getMessage().startswith("congestion analysis failed:")
     ]
-    assert len(failed) == 1
-    assert f"code={code}" in failed[0]
-    assert failed[0].endswith(" request_id=http-test")
+    if stage == "relevance":
+        assert failed == []
+    else:
+        assert len(failed) == 1
+        assert f"code={code}" in failed[0]
+        assert failed[0].endswith(" request_id=http-test")
 
 
 @pytest.mark.parametrize(

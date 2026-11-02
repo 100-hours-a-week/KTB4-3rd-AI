@@ -37,3 +37,10 @@ JUDGE_POLICY = CallPolicy(timeout=60.0, retries=1, concurrency=5)
 DECISIONS_POLICY = CallPolicy(timeout=30.0, retries=1, concurrency=10)
 
 DECISIONS_MAX_QUESTIONS = 400
+
+RELEVANCE_KEYWORDS = (
+    "혼잡", "붐비", "붐빔", "사람많", "사람이많", "꽉", "만원", "미어터", "북적", "복잡",
+    "한산", "여유", "텅", "널널", "사람없", "사람이없",
+    "줄", "대기", "기다", "못타", "못탔", "탑승", "배차", "밀려", "밀림", "막히", "막혀", "정체",
+    "지연", "연착", "사고", "고장", "공사", "시위", "집회", "행사", "공연", "경기", "폭우", "폭설", "출근", "퇴근",
+)

@@ -1,5 +1,6 @@
 """관련성 확률에 따른 선별과 후보 ID·문맥 보존을 검증한다."""
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock
@@ -7,6 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.features.congestion import relevance
+from app.features.congestion.config import RELEVANCE_KEYWORDS
 from app.features.congestion.models import CongestionSpotInput
 from app.features.congestion.preprocessor import PreparedSpot, prepare_spot
 
@@ -161,3 +163,26 @@ async def test_empty_spot_skips_scoring() -> None:
     )
     assert result.decisions == ()
     assert result.selected_candidates == ()
+
+
+@pytest.mark.parametrize(
+    ("title", "content", "expected"),
+    [
+        ("사람 많아요", "오늘 상황입니다", "RELATED"),
+        ("지금 상황", "사람이\t많아요", "RELATED"),
+        ("지금 상황", "못\n탔어요", "RELATED"),
+        ("지금 상황", "오늘 점심 뭐 먹지?", "UNRELATED"),
+    ],
+)
+def test_keyword_fallback_uses_candidate_text(
+    prepared: PreparedSpot, title: str, content: str, expected: str
+) -> None:
+    post = replace(prepared.candidates[0], title=title, content=content)
+    spot = replace(prepared, candidates=(post, *prepared.candidates[1:]))
+    result = relevance.classify_by_keywords(spot, RELEVANCE_KEYWORDS)
+    assert result.prepared is spot
+    assert [d.status for d in result.decisions] == [expected, "RELATED", "UNRELATED"]
+    assert all(d.probability is None for d in result.decisions)
+    assert [(c.signal_type, c.signal_id) for c in result.selected_candidates] == (
+        [("post", 1), ("comment", 1)] if expected == "RELATED" else [("comment", 1)]
+    )
