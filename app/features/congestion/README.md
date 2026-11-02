@@ -6,11 +6,11 @@
 
 ## consumer에서 부르는 코드
 
-저장소 루트에서 `uv sync`로 의존성을 설치한다. 동기 호출 예시는 아래와 같다.
+저장소 루트에서 `uv sync`로 의존성을 설치한다.
+비동기 consumer에서 메시지 하나를 처리하는 예시는 아래와 같다.
 `raw_request`는 실행 가능한 합성 예시이며, consumer에서는 Kafka 메시지 본문으로 바꾼다.
 
 ```python
-import asyncio
 import json
 
 from pydantic import ValidationError
@@ -33,7 +33,7 @@ except ValidationError:
     raise
 
 try:
-    result = asyncio.run(analyze_message(message, analyzer))
+    result = await analyze_message(message, analyzer)
 except Exception:
     # 단계별 실패(AppError)와 예상 밖 예외 모두 실패 결과를 발행하고 원본도 기록용 DLT에 남긴다.
     # 원인은 analyze_message가 같은 request_id로 남긴 로그에 있다.
@@ -45,11 +45,17 @@ result_body = result.model_dump_json()
 # 결과 발행과 필요한 DLT 전송이 성공한 뒤 오프셋을 커밋한다.
 ```
 
-분석은 비동기다. 위 예시는 동기 호출용이며, 비동기 consumer에서는 다음처럼 기다린다.
+위 코드는 비동기 consumer 함수 안에서 실행한다. 동기 consumer의 단독 호출에서는
+분석 호출 한 줄을 아래처럼 바꾼다. 이미 이벤트 루프가 실행 중이면 `asyncio.run`을 쓰지 않는다.
 
 ```python
-result = await analyze_message(message, analyzer)
+import asyncio
+
+result = asyncio.run(analyze_message(message, analyzer))
 ```
+
+동시 분석은 프로세스마다 하나의 지속되는 이벤트 루프에서 실행한다.
+모듈 전역 Semaphore를 여러 스레드·이벤트 루프가 동시에 공유하는 방식은 지원하지 않는다.
 
 요청 토픽은 `congestion.analysis.request`, 결과 토픽은 `congestion.analysis.result`,
 결과 key는 `spot_id`다. 브로커·인증·consumer 그룹·DLT 토픽 이름은 Spring BE·클라우드 팀과
@@ -89,12 +95,14 @@ result = await analyze_message(message, analyzer)
 | 요청 검증 | `REQUEST_INVALID` / 422 | consumer에서는 `ValidationError`. 결과 없이 원본을 DLT로 보냄 | 안 함. 요청 수정 필요 |
 | 관련성 선별 | 없음 | Decisions 호출·키 준비·응답 검증 실패 시 키워드 폴백으로 계속 분석 | 안 함 |
 | LLM 판정 호출 | `UPSTREAM_FAILED` / 502 | 외부 호출 또는 응답 형식 실패 | 일시적 호출 실패일 때만 검토. 인증·응답 형식 오류는 제외 |
-| 판정 모델 준비 | `MODEL_NOT_READY` / 503 | `OPENAI_API_KEY_2`가 없거나 비어 있음 | 키 주입 문제를 해결한 뒤, 다음 구간 전에 끝날 때만 검토 |
+| 판정 모델 준비 | `MODEL_NOT_READY` / 503 | 판정에 쓸 두 모델의 키가 모두 없거나 비어 있음 | 키 주입 문제를 해결한 뒤, 다음 구간 전에 끝날 때만 검토 |
 | 판정 출력 검증 | `CONGESTION_PARSE_FAILED` / 502 | JSON·값 형식 오류 또는 대상 ID 불일치 | 안 함 |
 | 예상 밖 예외 | `INTERNAL` / 500 | HTTP에서 변환되는 코드. consumer에는 원래 예외가 전달됨. 위 예시처럼 실패 결과로 처리 | 안 함. 로그의 스택 트레이스로 원인 확인 |
 
 관련성 선별 폴백은 `congestion relevance fallback` 경고 로그로 확인한다.
-키워드가 있는 후보만 판정하며, 전부 무관하면 `UNKNOWN` 성공 결과를 만든다.
+키워드 폴백은 [config.py](config.py)의 `RELEVANCE_KEYWORDS`를 쓴다. 공백을 제거한
+원글 제목+본문 또는 댓글 자체 본문에 키워드가 있으면 판정 대상으로 남긴다.
+전부 무관하면 `UNKNOWN` 성공 결과를 만든다.
 
 `analyze_message`는 분석 전체를 재시도하지 않고 예외를 올린다.
 실패하면 consumer가 `failure_result(message)`를 호출한다. 예상 밖 예외도 같은 방식으로 처리해,
@@ -112,39 +120,56 @@ result = await analyze_message(message, analyzer)
 
 외부 모델 호출은 [model_client.py](model_client.py)에서만 한다.
 429·5xx 응답이면 기본 1초 뒤 한 번 더 보낸다. 429의 `Retry-After`가 유효한 초 값이면
-그만큼 기다리며, 정책의 `timeout`보다 길면 기다리지 않고 실패한다. 시간 초과·연결 실패·그 밖의 4xx·응답 형식
-오류는 AI 내부에서 재시도하지 않는다. consumer 재시도는 Spring BE가 결정하되,
+그만큼 기다리며, 정책의 `timeout`보다 길면 기다리지 않고 해당 모델 호출을 실패로 처리한다.
+시간 초과·연결 실패·그 밖의 4xx·응답 형식 오류는 같은 모델에 재시도하지 않는다.
+
+판정은 `JUDGE_ENDPOINTS` 순서(OpenAI `gpt-6-luna` → Claude `claude-haiku-5-5`)로 시도한다.
+시간 초과·연결 실패·429·5xx·응답 구조 오류·키 없음이면 다음 모델로 넘긴다.
+429 외 4xx는 바로 실패하고, 판정 내용 검증 실패(`CONGESTION_PARSE_FAILED`)도
+다른 모델로 다시 묻지 않는다. Claude 키가 없으면 Claude 호출을 건너뛰고 앞 모델의 실패를
+유지한다. 두 모델 모두 키가 없으면 `MODEL_NOT_READY`다.
+
+consumer 재시도는 Spring BE가 결정하되,
 위 표의 두 코드(`UPSTREAM_FAILED`, `MODEL_NOT_READY`)에
 한정하고 다음 구간 전에 끝낼 수 있을 때만 권한다. 코드만으로 일시적 오류를 구분할 수는
 없으므로 같은 요청의 `reason`, `status`, `error` 로그도 확인한다.
 실패한 구간을 다음 구간 데이터에 합치지 않는다.
 
-설정은 [config.py](config.py)에 있다. 두 API 모두 `gpt-6-luna`를 사용한다.
-현재 값은 실측 전 임시값이다.
+설정은 [config.py](config.py)에 있다. Decisions는 `DECISIONS_ENDPOINT`의 `gpt-6-luna`를
+사용한다. 판정 모델 순서는 `JUDGE_ENDPOINTS`, Claude 출력 한도는 `JUDGE_MAX_TOKENS=8192`다.
+현재 호출 정책은 실측 전 임시값이다.
 
-| 설정 | timeout | retries | 호출 수 |
-| --- | --- | --- | --- |
-| `DECISIONS_POLICY` | 30초 | 1 | 스팟 전체 후보를 400개씩 나눠 동시 호출, 최대 3회 |
-| `JUDGE_POLICY` | 60초 | 1 | 선별 후 대상이 있으면 스팟당 1회 |
+| 설정 | timeout | retries | concurrency | 재시도 제외 호출 수 |
+| --- | --- | --- | --- | --- |
+| `DECISIONS_POLICY` | 30초 | 1 | 10 | 스팟 전체 후보를 400개씩 나눠 동시 호출, 최대 3회 |
+| `JUDGE_POLICY` | 60초 | 1 | 5 | 선별 후 대상이 있으면 1회, 폴백 시 다음 모델에 1회 추가 |
+
+9단계부터 원글 묶음마다 최대 50번 부르던 Decisions를 스팟 전체 입력으로 묶는다.
+`DECISIONS_MAX_QUESTIONS=400`이며 원글·댓글 합계 한도가 1,000개라 최대 3회다.
+`concurrency`는 프로세스 하나에서 공유하는 동시 호출 수이며, 판정 한도는 두 모델이 함께 쓴다.
+`timeout`은 모델별 시도에 적용되며 판정 폴백 전체의 제한 시간이 아니다.
 
 호출 제한 대기와 재시도 대기가 있으므로 분석 전체의 마감 시간은 별도로 보장하지 않는다.
 코드의 `httpx.AsyncClient(timeout=...)`는 연결·읽기 등의 제한이다. 코드 처리·통신 비용도
-별도다. **실측 필요.** 참고로 2026-10-29 Decisions 단독 측정(짧은 입력, 질문 1개)에서
-쉬던 뒤 첫 호출은 약 2초, 연달아 부른 호출은 0.25~0.7초였다. 호출 시간은 첫 호출 여부에 따라
-크게 달라지므로 실제 요청 형식과 트래픽으로 다시 재서 정한다. `max.poll.interval.ms`는 실측에 여유를 두어 정하고,
+별도다. **실측 필요.** 스팟 전체 입력·분할 동시 호출·판정 폴백이 적용된 현재 요청 형식과
+트래픽으로 처리 시간을 재서 정한다. `max.poll.interval.ms`는 실측에 여유를 두어 정하고,
 한 번의 poll에서 여러 메시지를 순서대로 처리한다면 합산 시간을 고려한다.
 비동기 consumer는 위 `await analyze_message(...)` 호출로 이벤트 루프를 막지 않도록 한다.
 
 ## 환경 변수·로그·변경 범위
 
-`OPENAI_API_KEY_2`를 consumer 프로세스 환경에 주입한다. 두 API가 같은 키를 사용한다.
+`OPENAI_API_KEY_2`를 consumer 프로세스 환경에 주입한다. OpenAI 판정과 Decisions가 같은 키를 쓴다.
+Claude 판정 폴백을 쓰려면 `ANTHROPIC_API_KEY`도 주입한다. 없거나 비어 있으면 Claude 호출만
+건너뛰며, OpenAI 키가 없어도 키워드 폴백 뒤 Claude로 판정할 수 있다.
 이 폴더의 직접 호출은 `.env`를 자동으로 읽지 않는다. 키를 코드·로그·Git에 넣지 않는다.
 
 HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요청 `event_id`를 넣고
 끝나면 복구한다. 이미 값이 있으면 유지한다. 로그는 `congestion analysis started`,
 `congestion relevance done`, `congestion judge done`, `congestion aggregate done`,
 `congestion analysis done/failed`로 흐름을 확인한다. 모델 시도·토큰·지연은
-`congestion model call done/retry/failed`에서 확인한다. Kafka 경로에는 HTTP의
+`congestion model call done/retry/failed`에서 확인한다. 관련성 선별을 대신한 경우는
+`congestion relevance fallback`, 판정 모델 전환은 `congestion model fallback` 경고를 확인한다.
+`congestion judge done/invalid`의 `model`로 판정 모델을 확인한다. Kafka 경로에는 HTTP의
 `request done` 로그가 없다. 본문·`author_key`·프롬프트·모델 응답 전문은 로그에 남기지 않는다.
 
 판정 규칙·프롬프트([extractor.py](extractor.py), [spot_extractor.py](spot_extractor.py)),
@@ -158,13 +183,19 @@ HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요�
 
 ## Spring BE가 알아야 할 변경
 
-- 2026-11-02 · 10단계: `analyze_message`와 분석기의 `analyze`는 비동기다.
-  비동기 consumer는 `await analyze_message(...)`, 동기 코드의 단독 호출은
-  `asyncio.run(analyze_message(...))`을 쓴다. 동시 분석은 프로세스마다 하나의
-  지속되는 이벤트 루프에서 실행해야 한다. Semaphore를 여러 스레드·이벤트 루프가 공유할 수 없다.
-- API마다 프로세스 전체에서 Semaphore 하나를 공유한다. 임시 동시 호출 수는
-  `config.py`의 `JUDGE_POLICY.concurrency=5`, `DECISIONS_POLICY.concurrency=10`이다.
-  재시도 대기 중에도 자리를 유지하며 취소·실패·완료 시 반환한다. 대기열 시간은 `timeout`에 포함되지 않는다.
-- 2026-11-02 · 11단계: Decisions 호출·키 준비·응답 검증 실패는 키워드 폴백으로 처리한다.
-  관련성 선별 실패 코드는 없어졌으며, 모니터 담당은 `congestion relevance fallback` 경고를 확인한다.
-  이때 `congestion relevance done`은 남기지 않는다. 판정 호출 실패 처리는 기존과 같다.
+### 2026-11-02
+
+- `analyze_message`와 분석기의 `analyze`가 비동기가 됐다. 비동기 consumer는
+  `await analyze_message(message, analyzer)`, 동기 consumer의 단독 호출은
+  `asyncio.run(analyze_message(message, analyzer))`을 쓴다. 파티션별 동시 처리는
+  Spring BE가 구현하며, 프로세스마다 하나의 지속되는 이벤트 루프에서 실행한다.
+- Claude 판정 폴백용 환경 변수 `ANTHROPIC_API_KEY`가 추가됐다. 없거나 비어 있으면
+  Claude 호출만 건너뛴다. 앞 OpenAI 호출이 실패했다면 그 실패를 유지하며,
+  판정 모델의 키가 모두 없을 때는 `MODEL_NOT_READY`다.
+- Decisions 호출·키 준비·응답 검증 실패는 키워드 폴백으로 계속 분석한다.
+  `CONGESTION_DECISIONS_FAILED`는 삭제됐으므로 consumer 재시도 대상에서도 뺀다.
+  `congestion relevance fallback` 경고를 확인하며, 이때 `congestion relevance done`은 남지 않는다.
+- 동시 호출 제한은 `config.py`의 `JUDGE_POLICY.concurrency=5`,
+  `DECISIONS_POLICY.concurrency=10`이다. 프로세스 전체에서 각각 Semaphore 하나를 공유하며,
+  판정 두 모델은 같은 한도를 쓴다. 재시도·판정 폴백 중에도 자리를 유지하고
+  취소·실패·완료 시 반환한다. 제한 대기 시간은 `timeout`에 포함되지 않는다.
