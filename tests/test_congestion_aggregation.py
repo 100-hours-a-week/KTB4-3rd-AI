@@ -90,14 +90,14 @@ def test_latest_stage_and_cause_are_selected_independently() -> None:
     assert aggregate(
         Judgment("a", AS_OF - timedelta(minutes=4), "HIGH", frozenset({"EVENT"})),
         Judgment("a", AS_OF - timedelta(minutes=3), "LOW"),
-        Judgment("a", AS_OF - timedelta(minutes=2), causes=frozenset({"DELAY"})),
+        Judgment("a", AS_OF - timedelta(minutes=2), causes=frozenset({"SERVICE_ISSUE"})),
         Judgment("b", AS_OF, "LOW", frozenset({"EVENT"})),
     ) == {
         "congestion_level": "LOW",
         "report_count": 2,
         "causes": [
-            {"cause_code": "DELAY", "report_count": 1},
             {"cause_code": "EVENT", "report_count": 1},
+            {"cause_code": "SERVICE_ISSUE", "report_count": 1},
         ],
     }
 
@@ -116,7 +116,7 @@ def test_no_new_concrete_cause_does_not_clear_earlier_cause() -> None:
 def test_latest_valid_report_without_cause_drops_earlier_cause() -> None:
     """최신 유효 단계 제보에 원인이 없으면 같은 작성자의 앞선 원인을 버린다(U12)."""
     assert aggregate(
-        Judgment("a", AS_OF - timedelta(minutes=2), "MEDIUM", frozenset({"BREAKDOWN"})),
+        Judgment("a", AS_OF - timedelta(minutes=2), "MEDIUM", frozenset({"SERVICE_ISSUE"})),
         Judgment("a", AS_OF - timedelta(minutes=1), "LOW"),
     ) == {
         "congestion_level": "LOW",
@@ -129,14 +129,14 @@ def test_same_timestamp_prefers_larger_id_within_same_type() -> None:
     """같은 시각의 같은 종류 신호는 ID가 큰 쪽이 최신이다(U11)."""
     assert aggregate(
         Judgment("a", AS_OF, "HIGH", frozenset({"EVENT"}), "post", 1),
-        Judgment("a", AS_OF, "LOW", frozenset({"DELAY"}), "post", 2),
+        Judgment("a", AS_OF, "LOW", frozenset({"SERVICE_ISSUE"}), "post", 2),
         Judgment("b", AS_OF, "MEDIUM", frozenset({"EVENT"}), "post", 3),
     ) == {
         "congestion_level": "MEDIUM",
         "report_count": 2,
         "causes": [
-            {"cause_code": "DELAY", "report_count": 1},
             {"cause_code": "EVENT", "report_count": 1},
+            {"cause_code": "SERVICE_ISSUE", "report_count": 1},
         ],
     }
 
@@ -196,14 +196,14 @@ def test_trace_keeps_all_source_indices_without_time_filtering() -> None:
 
 def test_each_cause_counts_distinct_authors() -> None:
     assert aggregate(
-        Judgment("a", AS_OF, "HIGH", frozenset({"EVENT", "ROAD_TRAFFIC"})),
+        Judgment("a", AS_OF, "HIGH", frozenset({"EVENT", "ROAD_ISSUE"})),
         Judgment("b", AS_OF, "HIGH", frozenset({"EVENT"})),
     ) == {
         "congestion_level": "HIGH",
         "report_count": 2,
         "causes": [
             {"cause_code": "EVENT", "report_count": 2},
-            {"cause_code": "ROAD_TRAFFIC", "report_count": 1},
+            {"cause_code": "ROAD_ISSUE", "report_count": 1},
         ],
     }
 

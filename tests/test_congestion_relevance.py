@@ -172,6 +172,9 @@ async def test_empty_spot_skips_scoring() -> None:
         ("지금 상황", "사람이\t많아요", "RELATED"),
         ("지금 상황", "못\n탔어요", "RELATED"),
         ("지금 상황", "오늘 점심 뭐 먹지?", "UNRELATED"),
+        ("지금 상황", "폭우가 내려요", "UNRELATED"),
+        ("지금 상황", "폭설이 내려요", "UNRELATED"),
+        ("폭우가 내려요", "줄이 길어요", "RELATED"),
     ],
 )
 def test_keyword_fallback_uses_candidate_text(

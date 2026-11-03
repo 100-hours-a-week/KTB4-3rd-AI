@@ -87,7 +87,7 @@ result = asyncio.run(analyze_message(message, analyzer))
 `summary`는 코드 집계로 만드는 짧은 상황 문장이다. `UNKNOWN`이면 `null`,
 `LOW`이거나 구체 원인이 없으면 "제보한 사람은 N명이에요."다. `MEDIUM`·`HIGH`는
 원인별 `report_count`가 가장 큰 원인 하나의 문장을 쓴다.
-동률이면 정해진 우선순위로 고른다. 혼잡 단계 문장은 넣지 않는다.
+동률이면 사고 → 운행 문제 → 도로 문제 → 행사 → 출퇴근 순으로 고른다. 혼잡 단계 문장은 넣지 않는다.
 
 ## 값이 없을 때 규칙
 
@@ -208,13 +208,20 @@ HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요�
 - `causes`의 원인 코드 `UNKNOWN`을 삭제했다. 원인이 없으면 `[]`를 보낸다.
 - 판정 규칙 정리와 판정·관련성 기준 보완(원인 서술 말투, 사고 직접 제보, 운행 상황 글)으로
   같은 글의 판정이 조금 달라질 수 있다. 응답 형식은 그대로다.
-  원인 코드 10개는 유지하며, 목록은 15단계 평가 뒤 줄어들 수 있다.
+- `cause_code`가 `RUSH_HOUR`, `EVENT`, `ACCIDENT`, `SERVICE_ISSUE`, `ROAD_ISSUE`
+  5개로 바뀐다. `BREAKDOWN`·`DELAY`·운행 중단은 `SERVICE_ISSUE`,
+  `ROAD_TRAFFIC`·`CONSTRUCTION`·`DEMONSTRATION`·통제·우회는 `ROAD_ISSUE`로 합친다.
+  `SERVICE_DISRUPTION`은 운행 중단이면 `SERVICE_ISSUE`, 도로 통제·우회면 `ROAD_ISSUE`다.
+  `WEATHER`는 없어진다. 도로 사정 때문에 늦어진 것도 `ROAD_ISSUE`만 쓴다.
+  원인 코드를 DB enum·상수로 둔 곳도 함께 바꿔야 한다.
+- 새 요약 문장은 `SERVICE_ISSUE` "운행에 문제가 생겨 혼잡해요.",
+  `ROAD_ISSUE` "도로에 문제가 생겨 혼잡해요."다.
 - `result.summary`는 필수 키를 유지하면서 `string | null`로 바뀐다. `UNKNOWN`이면
   `null`이므로 Spring BE·FE에서도 허용해야 한다. `FAILED` 결과 형식은 그대로다.
 - `LOW`와 구체 원인 없음은 "제보한 사람은 N명이에요.", `MEDIUM`·`HIGH`는
   가장 많은 원인 하나의 고정 문장을 쓴다.
-  원인 수 동률은 사고 → 운행 통제 → 고장 → 지연 → 행사 → 집회 → 공사 → 날씨 →
-  도로 정체 → 출퇴근 순서다. 혼잡 단계 문장은 넣지 않는다.
+  원인 수 동률은 사고 → 운행 문제 → 도로 문제 → 행사 → 출퇴근 순서다.
+  혼잡 단계 문장은 넣지 않는다.
 - 문장 표와 우선순위는 [summarizer.py](summarizer.py)의 `CAUSE_SENTENCES`와
   `CAUSE_PRIORITY`에 있다.
 

@@ -6,24 +6,14 @@ CAUSE_SENTENCES: dict[CauseCode, str] = {
     "RUSH_HOUR": "출퇴근하는 사람이 많아요.",
     "EVENT": "행사 때문에 사람이 많아요.",
     "ACCIDENT": "사고 때문에 혼잡해요.",
-    "BREAKDOWN": "고장 때문에 운행이 늦어지고 있어요.",
-    "DELAY": "운행이 지연되고 있어요.",
-    "SERVICE_DISRUPTION": "운행이 통제돼서 우회해야 해요.",
-    "WEATHER": "날씨 때문에 혼잡해요.",
-    "ROAD_TRAFFIC": "도로가 막혀서 혼잡해요.",
-    "CONSTRUCTION": "공사 때문에 혼잡해요.",
-    "DEMONSTRATION": "집회 때문에 혼잡해요.",
+    "SERVICE_ISSUE": "운행에 문제가 생겨 혼잡해요.",
+    "ROAD_ISSUE": "도로에 문제가 생겨 혼잡해요.",
 }
 CAUSE_PRIORITY: tuple[CauseCode, ...] = (
     "ACCIDENT",
-    "SERVICE_DISRUPTION",
-    "BREAKDOWN",
-    "DELAY",
+    "SERVICE_ISSUE",
+    "ROAD_ISSUE",
     "EVENT",
-    "DEMONSTRATION",
-    "CONSTRUCTION",
-    "WEATHER",
-    "ROAD_TRAFFIC",
     "RUSH_HOUR",
 )
 

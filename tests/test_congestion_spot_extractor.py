@@ -154,12 +154,12 @@ async def test_no_stage_supports_cause_only_or_no_valid_evidence(
     for signal in body["signals"]:
         signal["congestion_level"] = None
         signal["causes"] = []
-    body["signals"][0]["causes"] = ["BREAKDOWN"] if has_cause else []
+    body["signals"][0]["causes"] = ["SERVICE_ISSUE"] if has_cause else []
 
     result = await assess_spot(model_input, AsyncMock(side_effect=lambda _: json.dumps(body)))
 
     assert all(signal.congestion_level is None for signal in result.signals)
-    assert result.signals[1].causes == (frozenset({"BREAKDOWN"}) if has_cause else frozenset())
+    assert result.signals[1].causes == (frozenset({"SERVICE_ISSUE"}) if has_cause else frozenset())
 
 
 @pytest.mark.asyncio
@@ -219,10 +219,9 @@ async def test_provider_output_validation_keeps_model_and_does_not_fallback(
     assert model_client.judge_model.get() == "gpt-6-luna"
 
 
-def test_judgment_cause_schema_keeps_ten_codes() -> None:
+def test_judgment_cause_schema_keeps_five_codes() -> None:
     assert SignalDecision.model_json_schema()["properties"]["causes"]["items"]["enum"] == [
-        "RUSH_HOUR", "EVENT", "ACCIDENT", "BREAKDOWN", "DELAY",
-        "SERVICE_DISRUPTION", "WEATHER", "ROAD_TRAFFIC", "CONSTRUCTION", "DEMONSTRATION",
+        "RUSH_HOUR", "EVENT", "ACCIDENT", "SERVICE_ISSUE", "ROAD_ISSUE",
     ]
 
 
@@ -266,18 +265,18 @@ HIGH: "사람 엄청 많아요", "줄 엄청 길어요", "못 움직여요", 혼
 causes는 아래 코드의 배열이며 없으면 []다. 단계와 따로 판단한다. 원인만 있고 단계가 없으면
 단계는 null, 원인은 넣는다.
 원인이 혼잡·대기에 영향을 준다는 관계가 글에 쓰여 있을 때만 넣는다. 사실만 말하면 넣지 않는다.
-"지금 비가 많이 와요" → []. "폭우 때문에 대기줄이 길어졌어요" → WEATHER.
-"신호기 고장 때문에 사람들이 기다려요" → MEDIUM, BREAKDOWN.
+날씨는 원인으로 넣지 않는다("폭우 때문에 대기줄이 길어졌어요" → []).
+"신호기 고장 때문에 사람들이 기다려요" → MEDIUM, SERVICE_ISSUE.
 글쓴이가 원인을 혼잡과 이어서 쓰면 "~라 그런지", "~는 듯", "~나 봐요"처럼 짐작하는 말투여도 넣는다.
 "출구를 막아놨나?"처럼 묻기만 한 원인과 부정한 원인은 넣지 않는다. 코드가 애매하면 그 원인은 넣지 않는다.
 글쓴이가 출퇴근 시간·인파를 혼잡과 함께 쓰면 RUSH_HOUR다. 작성 시각만 출퇴근이면 넣지 않는다.
-원인으로 고장을 넣을 때 늦음·안 옴도 쓰여 있으면 DELAY도 넣는다.
+도로 사정(정체·공사·집회·통제) 때문에 늦어지거나 우회하면 SERVICE_ISSUE가 아니라 ROAD_ISSUE만 넣는다.
 예외: 차량 도로 정체("차가 막혀요", "도로가 막혀서 버스가 안 와요")가 쓰여 있으면 관계가 없어도
-ROAD_TRAFFIC을 넣는다. "차가 잘 빠져요"면 넣지 않는다.
+ROAD_ISSUE를 넣는다. "차가 잘 빠져요"면 넣지 않는다.
 예외: 지금 일어난 교통사고를 직접 제보하면("여기 차 사고 났어요") 혼잡 서술이 없어도 ACCIDENT를 넣는다.
 "사고 났대요" 같은 전언은 넣지 않는다.
-코드: RUSH_HOUR(출퇴근), EVENT(행사·공연·경기), ACCIDENT(사고), BREAKDOWN(차량·설비 고장),
-DELAY(운행 지연), SERVICE_DISRUPTION(중단·통제·우회), WEATHER(폭우·폭설·태풍·한파),
-ROAD_TRAFFIC(도로 정체), CONSTRUCTION(공사·시설 작업), DEMONSTRATION(집회·시위·행진).
+코드: RUSH_HOUR(출퇴근 인파), EVENT(행사·공연·경기), ACCIDENT(교통사고),
+SERVICE_ISSUE(운행 문제: 차량·열차·설비 고장, 운행 지연, 운행 중단),
+ROAD_ISSUE(도로 문제: 도로 정체, 공사, 집회·행진, 도로 통제·우회).
 """
     assert SPOT_PROMPT == expected_instructions + "\n" + expected_rules + "\n입력 JSON:\n"

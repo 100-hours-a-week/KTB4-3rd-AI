@@ -66,7 +66,7 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
             if r.name.startswith("app.features.congestion")]
     assert any("candidates=5 related=2 uncertain=1 unrelated=2 refused=0 ms=" in log for log in logs)
     assert any("targets=3 signals=3 ms=" in log for log in logs)
-    assert any("level=LOW decision=UNIQUE_TOP report_count=1 causes=BREAKDOWN" in log
+    assert any("level=LOW decision=UNIQUE_TOP report_count=1 causes=SERVICE_ISSUE" in log
                for log in logs)
     assert all(log.endswith(f" request_id={response.headers['X-Request-ID']}") for log in logs)
     assert len(decision_requests) == 1
@@ -89,7 +89,7 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
         "result": {
             "congestion_level": "LOW",
             "report_count": 1,
-            "causes": [{"cause_code": "BREAKDOWN", "report_count": 1}],
+            "causes": [{"cause_code": "SERVICE_ISSUE", "report_count": 1}],
             "summary": "제보한 사람은 1명이에요.",
         },
     }

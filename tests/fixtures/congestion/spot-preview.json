@@ -91,7 +91,7 @@
         "signal_id": 1,
         "congestion_level": null,
         "causes": [
-          "BREAKDOWN"
+          "SERVICE_ISSUE"
         ]
       },
       {
