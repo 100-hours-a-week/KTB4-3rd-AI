@@ -16,10 +16,7 @@ from app.features.congestion.summarizer import summarize_result
         ("LOW", [("EVENT", 1)], "제보한 사람은 2명이에요."),
         ("MEDIUM", [], "제보한 사람은 2명이에요."),
         ("HIGH", [], "제보한 사람은 2명이에요."),
-        ("MEDIUM", [("UNKNOWN", 0)], "제보한 사람은 2명이에요."),
-        ("HIGH", [("UNKNOWN", 0)], "제보한 사람은 2명이에요."),
         ("HIGH", [("ACCIDENT", 1), ("EVENT", 2)], "행사 때문에 사람이 많아요."),
-        ("MEDIUM", [("UNKNOWN", 5), ("EVENT", 1)], "행사 때문에 사람이 많아요."),
     ],
 )
 def test_summary_uses_level_and_most_reported_concrete_cause(
@@ -91,3 +88,11 @@ def test_summary_key_is_required_but_accepts_null(summary: str | None) -> None:
     assert result.model_dump(mode="json")["summary"] == summary
     with pytest.raises(ValidationError, match="summary"):
         CongestionResultWithSummary.model_validate(data)
+
+
+def test_result_rejects_unknown_cause() -> None:
+    with pytest.raises(ValidationError, match="cause_code"):
+        CongestionResult.model_validate({
+            "congestion_level": "MEDIUM", "report_count": 1,
+            "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
+        })

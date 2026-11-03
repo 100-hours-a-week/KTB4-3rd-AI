@@ -86,8 +86,20 @@ result = asyncio.run(analyze_message(message, analyzer))
 
 `summary`는 코드 집계로 만드는 짧은 상황 문장이다. `UNKNOWN`이면 `null`,
 `LOW`이거나 구체 원인이 없으면 "제보한 사람은 N명이에요."다. `MEDIUM`·`HIGH`는
-`UNKNOWN` 원인을 제외하고 원인별 `report_count`가 가장 큰 원인 하나의 문장을 쓴다.
+원인별 `report_count`가 가장 큰 원인 하나의 문장을 쓴다.
 동률이면 정해진 우선순위로 고른다. 혼잡 단계 문장은 넣지 않는다.
+
+## 값이 없을 때 규칙
+
+| 필드 | 값이 없을 때 | 뜻 |
+| --- | --- | --- |
+| `result.congestion_level` | `"UNKNOWN"` | 단계를 판단할 제보가 없음 (enum 값) |
+| `result.report_count` | `0` | |
+| `result.causes` | `[]` | 원인 제보가 없음. `null`로 보내지 않는다. 단계가 있어도 원인이 없으면 `[]` |
+| `result.summary` | `null` | `UNKNOWN`일 때만. 키는 항상 있다 |
+| `result` (`FAILED`) | `null` | 실패 결과. 기존 그대로 |
+
+규칙 한 줄: enum은 `UNKNOWN`, 문장은 `null`, 목록은 `[]`.
 
 ## 실패 처리
 
@@ -190,14 +202,17 @@ HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요�
 
 ### 2026-11-03
 
+- `causes`의 원인 코드 `UNKNOWN`을 삭제했다. 원인이 없으면 `[]`를 보낸다.
+- 판정 규칙 정리로 같은 글의 판정이 조금 달라질 수 있다.
+  원인 코드 10개는 유지하며, 목록은 15단계 평가 뒤 줄어들 수 있다.
 - `result.summary`는 필수 키를 유지하면서 `string | null`로 바뀐다. `UNKNOWN`이면
   `null`이므로 Spring BE·FE에서도 허용해야 한다. `FAILED` 결과 형식은 그대로다.
 - `LOW`와 구체 원인 없음은 "제보한 사람은 N명이에요.", `MEDIUM`·`HIGH`는
-  `UNKNOWN` 원인을 제외하고 가장 많은 원인 하나의 고정 문장을 쓴다.
+  가장 많은 원인 하나의 고정 문장을 쓴다.
   원인 수 동률은 사고 → 운행 통제 → 고장 → 지연 → 행사 → 집회 → 공사 → 날씨 →
   도로 정체 → 출퇴근 순서다. 혼잡 단계 문장은 넣지 않는다.
 - 문장 표와 우선순위는 [summarizer.py](summarizer.py)의 `CAUSE_SENTENCES`와
-  `CAUSE_PRIORITY`에 있다. LLM 호출·판정 출력·집계는 바뀌지 않는다.
+  `CAUSE_PRIORITY`에 있다.
 
 ### 2026-11-02
 

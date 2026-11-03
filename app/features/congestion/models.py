@@ -65,7 +65,6 @@ CauseCode = Literal[
     "ROAD_TRAFFIC",
     "CONSTRUCTION",
     "DEMONSTRATION",
-    "UNKNOWN",
 ]
 
 

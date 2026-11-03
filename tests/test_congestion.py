@@ -322,6 +322,7 @@ def test_analyzer_receives_one_message_and_preserves_input(
     assert len(calls) == 1
     assert calls[0].model_dump(mode="json") == original
     assert payload == original
+    assert response.json()["result"]["causes"] == []
     assert response.json()["result"]["congestion_level"] == level
     assert response.json()["result"]["summary"] == summary
 

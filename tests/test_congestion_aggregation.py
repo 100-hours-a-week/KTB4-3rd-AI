@@ -64,7 +64,7 @@ def test_documented_aggregation_cases(
     assert trace.result.model_dump() == {
         "congestion_level": level,
         "report_count": report_count,
-        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}] if report_count else [],
+        "causes": [],
     }
     assert trace.decision == decision
 
@@ -121,7 +121,7 @@ def test_latest_valid_report_without_cause_drops_earlier_cause() -> None:
     ) == {
         "congestion_level": "LOW",
         "report_count": 1,
-        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
+        "causes": [],
     }
 
 
@@ -149,7 +149,7 @@ def test_same_timestamp_comment_is_newer_than_post() -> None:
     ) == {
         "congestion_level": "LOW",
         "report_count": 1,
-        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
+        "causes": [],
     }
 
 

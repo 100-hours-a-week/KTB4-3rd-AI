@@ -151,15 +151,10 @@ def aggregate_with_trace(signals: Iterable[JudgedSignal]) -> AggregationTrace:
         if (values := vote.value) is not None
         for cause in values
     )
-    if cause_counts:
-        causes = [
-            CongestionCause(cause_code=code, report_count=count)
-            for code, count in sorted(cause_counts.items())
-        ]
-    elif stages:
-        causes = [CongestionCause(cause_code="UNKNOWN", report_count=0)]
-    else:
-        causes = []
+    causes = [
+        CongestionCause(cause_code=code, report_count=count)
+        for code, count in sorted(cause_counts.items())
+    ]
     return AggregationTrace(
         result=CongestionResult(
             congestion_level=level,

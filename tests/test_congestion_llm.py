@@ -224,6 +224,6 @@ def test_failed_message_does_not_retry_and_next_request_continues() -> None:
     assert successful.json()["result"] == {
         "congestion_level": "MEDIUM",
         "report_count": 1,
-        "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
+        "causes": [],
         "summary": "제보한 사람은 1명이에요.",
     }
