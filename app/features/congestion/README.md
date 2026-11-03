@@ -74,7 +74,7 @@ result = asyncio.run(analyze_message(message, analyzer))
 | 묶음 | `post_bundles`: 1~50개. 원글의 `post_id`, `title`(1~30자), `content`(1~280자), `author_key`, `created_at`, `context_only`, `comments` 필수 |
 | 댓글 | 묶음당 0~100개. `comment_id`, `content`(1~280자), `author_key`, `created_at` 필수 |
 | 공통 제약 | 원글·댓글 ID는 strict 양의 정수, 종류별 ID 중복 금지, 원글·댓글 합계 1,000개 이하. 텍스트는 공백만 불가, `author_key`는 1~128자. 정의되지 않은 필드 거절 |
-| 성공 결과 | `analysis_status: SUCCESS`, `result`: `congestion_level`(`LOW`/`MEDIUM`/`HIGH`/`UNKNOWN`), `report_count`, `causes`(`cause_code`·`report_count` 목록), `summary` |
+| 성공 결과 | `analysis_status: SUCCESS`, `result`: `congestion_level`(`LOW`/`MEDIUM`/`HIGH`/`UNKNOWN`), `report_count`, `causes`(`cause_code`·`report_count` 목록), `summary`(필수 키, 문자열 또는 `null`) |
 | 결과 공통 | 새 UUID4 `event_id`(요청과 다름), `schema_version: 1`, 요청의 `spot_id`·`window_end`, UTC 완료 시각 `analyzed_at` |
 
 `event_id`는 UUID처럼 영숫자와 `._-`만 쓴 64자 이하 값을 보낸다. 이 형식이 아니면 분석은 하지만
@@ -83,6 +83,11 @@ result = asyncio.run(analyze_message(message, analyzer))
 `context_only`는 필수 strict bool이다. `true`인 원글은 문맥으로만 쓰고 해당 댓글은
 판정 후보로 남긴다. 같은 작성자는 원글·댓글에 같은 `author_key`를 보내야 한다.
 구간 데이터 선정은 Spring BE가 맡는다. AI는 구간 필터나 미래 작성 시각 검사를 하지 않는다.
+
+`summary`는 코드 집계로 만드는 짧은 상황 문장이다. `UNKNOWN`이면 `null`,
+`LOW`이거나 구체 원인이 없으면 "제보한 사람은 N명이에요."다. `MEDIUM`·`HIGH`는
+`UNKNOWN` 원인을 제외하고 원인별 `report_count`가 가장 큰 원인 하나의 문장을 쓴다.
+동률이면 정해진 우선순위로 고른다. 혼잡 단계 문장은 넣지 않는다.
 
 ## 실패 처리
 
@@ -182,6 +187,17 @@ HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요�
 성공은 결과 메시지, 실패는 단계별 HTTP 오류이며 `200 + FAILED`로 반환하지 않는다.
 
 ## Spring BE가 알아야 할 변경
+
+### 2026-11-03
+
+- `result.summary`는 필수 키를 유지하면서 `string | null`로 바뀐다. `UNKNOWN`이면
+  `null`이므로 Spring BE·FE에서도 허용해야 한다. `FAILED` 결과 형식은 그대로다.
+- `LOW`와 구체 원인 없음은 "제보한 사람은 N명이에요.", `MEDIUM`·`HIGH`는
+  `UNKNOWN` 원인을 제외하고 가장 많은 원인 하나의 고정 문장을 쓴다.
+  원인 수 동률은 사고 → 운행 통제 → 고장 → 지연 → 행사 → 집회 → 공사 → 날씨 →
+  도로 정체 → 출퇴근 순서다. 혼잡 단계 문장은 넣지 않는다.
+- 문장 표와 우선순위는 [summarizer.py](summarizer.py)의 `CAUSE_SENTENCES`와
+  `CAUSE_PRIORITY`에 있다. LLM 호출·판정 출력·집계는 바뀌지 않는다.
 
 ### 2026-11-02
 

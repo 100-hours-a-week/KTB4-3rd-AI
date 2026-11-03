@@ -90,7 +90,7 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
             "congestion_level": "LOW",
             "report_count": 1,
             "causes": [{"cause_code": "BREAKDOWN", "report_count": 1}],
-            "summary": "제보 기준 혼잡도는 한산이며, 혼잡 제보자는 1명입니다. 제보된 원인은 차량·설비 고장(1명)입니다.",
+            "summary": "제보한 사람은 1명이에요.",
         },
     }
 

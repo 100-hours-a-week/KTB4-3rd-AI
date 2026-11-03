@@ -111,8 +111,7 @@ def test_message_result_preserves_window_and_has_completion_metadata(
             "congestion_level": "MEDIUM",
             "report_count": 1,
             "causes": [{"cause_code": "EVENT", "report_count": 1}],
-            "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. "
-            "제보된 원인은 행사·공연·경기(1명)입니다.",
+            "summary": "행사 때문에 사람이 많아요.",
         }
     assert "spots" not in body
     assert "request_id" not in body
@@ -300,15 +299,20 @@ def test_empty_comments_and_stateless_requests(payload: dict[str, Any]) -> None:
     assert first["result"] == second["result"]
 
 
+@pytest.mark.parametrize(
+    ("level", "summary"), [("LOW", "제보한 사람은 2명이에요."), ("UNKNOWN", None)]
+)
 def test_analyzer_receives_one_message_and_preserves_input(
-    payload: dict[str, Any],
+    payload: dict[str, Any], level: str, summary: str | None,
 ) -> None:
     calls: list[CongestionAnalysisMessage] = []
 
     class ReplacementAnalyzer:
         async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
             calls.append(message)
-            return CongestionResult(congestion_level="LOW", report_count=2, causes=[])
+            return CongestionResult.model_validate(
+                {"congestion_level": level, "report_count": 2, "causes": []}
+            )
 
     node(payload, "post")["content"] = "  사람이 많아요.  "
     original = deepcopy(payload)
@@ -318,7 +322,8 @@ def test_analyzer_receives_one_message_and_preserves_input(
     assert len(calls) == 1
     assert calls[0].model_dump(mode="json") == original
     assert payload == original
-    assert response.json()["result"]["congestion_level"] == "LOW"
+    assert response.json()["result"]["congestion_level"] == level
+    assert response.json()["result"]["summary"] == summary
 
 
 @pytest.mark.asyncio

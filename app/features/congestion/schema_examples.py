@@ -53,7 +53,7 @@ RESPONSE_EXAMPLE: dict[str, JsonValue] = {
         "congestion_level": "HIGH",
         "report_count": 2,
         "causes": [{"cause_code": "EVENT", "report_count": 1}],
-        "summary": "제보 기준 혼잡도는 매우 혼잡이며, 혼잡 제보자는 2명입니다. 제보된 원인은 행사·공연·경기(1명)입니다.",
+        "summary": "행사 때문에 사람이 많아요.",
     },
     "analyzed_at": "2026-10-13T09:00:41Z",
 }

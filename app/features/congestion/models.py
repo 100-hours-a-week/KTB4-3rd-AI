@@ -136,7 +136,7 @@ class CongestionResult(ApiModel):
 class CongestionResultWithSummary(CongestionResult):
     """코드 집계가 끝난 뒤 생성한 요약을 포함하는 성공 응답."""
 
-    summary: NonBlankText
+    summary: NonBlankText | None
 
 
 class CongestionAnalysisSuccess(ApiModel):

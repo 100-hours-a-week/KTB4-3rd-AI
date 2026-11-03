@@ -160,7 +160,7 @@ def test_http_uses_real_analyzer_pipeline_with_injected_model(
             "congestion_level": "MEDIUM",
             "report_count": 1,
             "causes": [{"cause_code": "EVENT", "report_count": 1}],
-            "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. 제보된 원인은 행사·공연·경기(1명)입니다.",
+            "summary": "행사 때문에 사람이 많아요.",
         },
     }
 
@@ -225,6 +225,5 @@ def test_failed_message_does_not_retry_and_next_request_continues() -> None:
         "congestion_level": "MEDIUM",
         "report_count": 1,
         "causes": [{"cause_code": "UNKNOWN", "report_count": 0}],
-        "summary": "제보 기준 혼잡도는 보통이며, 혼잡 제보자는 1명입니다. "
-        "구체적인 혼잡 원인은 제보되지 않았습니다.",
+        "summary": "제보한 사람은 1명이에요.",
     }
