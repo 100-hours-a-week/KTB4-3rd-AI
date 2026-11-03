@@ -59,7 +59,7 @@ CauseCode = Literal[
     "EVENT",
     "ACCIDENT",
     "SERVICE_ISSUE",
-    "ROAD_ISSUE",
+    "DELAY_ISSUE",
 ]
 
 

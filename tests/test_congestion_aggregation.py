@@ -196,14 +196,14 @@ def test_trace_keeps_all_source_indices_without_time_filtering() -> None:
 
 def test_each_cause_counts_distinct_authors() -> None:
     assert aggregate(
-        Judgment("a", AS_OF, "HIGH", frozenset({"EVENT", "ROAD_ISSUE"})),
+        Judgment("a", AS_OF, "HIGH", frozenset({"EVENT", "DELAY_ISSUE"})),
         Judgment("b", AS_OF, "HIGH", frozenset({"EVENT"})),
     ) == {
         "congestion_level": "HIGH",
         "report_count": 2,
         "causes": [
+            {"cause_code": "DELAY_ISSUE", "report_count": 1},
             {"cause_code": "EVENT", "report_count": 2},
-            {"cause_code": "ROAD_ISSUE", "report_count": 1},
         ],
     }
 
