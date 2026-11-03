@@ -163,6 +163,9 @@ consumer 재시도는 Spring BE가 결정하되,
 
 9단계부터 원글 묶음마다 최대 50번 부르던 Decisions를 스팟 전체 입력으로 묶는다.
 `DECISIONS_MAX_QUESTIONS=400`이며 원글·댓글 합계 한도가 1,000개라 최대 3회다.
+Decisions 요청의 `input`은 공통 지시문을 담은 developer 메시지와 스팟 JSON을 담은 user
+메시지다. 질문의 `instructions`에는 대상 원글·댓글만 적으며, 나눠 보내는 요청도 같은
+`input`을 쓴다.
 `concurrency`는 프로세스 하나에서 공유하는 동시 호출 수이며, 판정 한도는 두 모델이 함께 쓴다.
 `timeout`은 모델별 시도에 적용되며 판정 폴백 전체의 제한 시간이 아니다.
 

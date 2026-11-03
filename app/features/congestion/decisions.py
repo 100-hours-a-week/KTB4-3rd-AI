@@ -67,12 +67,15 @@ class DecisionsRelevanceScorer:
             }
             body = {
                 "model": DECISIONS_ENDPOINT.model,
-                "input": shared_input,
+                "input": [
+                    {"role": "developer", "content": INSTRUCTIONS},
+                    {"role": "user", "content": shared_input},
+                ],
                 "questions": [
                     {
                         "type": "predicate",
                         "name": name,
-                        "instructions": INSTRUCTIONS + f"\n판정 대상: {kind}_id={signal_id}",
+                        "instructions": f"{kind}_id={signal_id}는 위 기준에서 혼잡과 관련 있는 글인가?",
                     }
                     for name, (kind, signal_id) in names.items()
                 ],

@@ -73,7 +73,7 @@ def test_http_runs_decisions_spot_extraction_aggregation_and_code_summary(
     assert len(extraction_inputs) == 1
     assert extraction_inputs[0]["window_end"] == data["window_end"]
     for request in decision_requests:
-        assert json.loads(request["input"])["window_end"] == data["window_end"]
+        assert json.loads(request["input"][1]["content"])["window_end"] == data["window_end"]
     assert extraction_inputs[0]["targets"] == [
         {"signal_type": "post", "signal_id": 1},
         {"signal_type": "comment", "signal_id": 1},

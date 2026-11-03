@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from app.core.exceptions import ModelNotReady, UpstreamError
-from app.features.congestion.decisions import DecisionsRelevanceScorer
+from app.features.congestion.decisions import INSTRUCTIONS, DecisionsRelevanceScorer
 from app.features.congestion.models import CongestionSpotInput
 from app.features.congestion.preprocessor import PreparedSpot, prepare_spot
 from app.features.congestion.relevance import (
@@ -106,7 +106,19 @@ async def test_spot_request_classifies_all_candidates_and_keeps_parent_context(
         ["comment_1", "comment_2", "comment_3", "post_3"],
     ]
     assert all(payload["model"] == "gpt-6-luna" for payload in received)
-    context = json.loads(received[0]["input"])
+    messages = received[0]["input"]
+    assert len(messages) == 2
+    assert messages[0] == {"role": "developer", "content": INSTRUCTIONS}
+    assert messages[1]["role"] == "user"
+    for question, candidate in zip(received[0]["questions"], prepared.candidates, strict=True):
+        assert INSTRUCTIONS not in question["instructions"]
+        assert question["instructions"] == (
+            f"{candidate.signal_type}_id={candidate.signal_id}는 위 기준에서 혼잡과 관련 있는 글인가?"
+        )
+    context = json.loads(messages[1]["content"])
+    assert context["post_bundles"] == [
+        post.model_dump(mode="json") for post in prepared.post_bundles
+    ]
     assert len(context["post_bundles"]) == 2
     assert context["window_end"] == "2026-10-12T12:00:00+09:00"
     assert context["post_bundles"][0]["title"] == "오래된 부모"
@@ -290,7 +302,14 @@ async def test_questions_are_split_with_identical_spot_input(
     assert set(result) == {(c.signal_type, c.signal_id) for c in prepared.candidates}
     assert [len(body["questions"]) for body in received] == sizes
     assert all(body["input"] == received[0]["input"] for body in received)
-    assert json.loads(received[0]["input"])["post_bundles"] == posts
+    assert received[0]["input"][0] == {"role": "developer", "content": INSTRUCTIONS}
+    assert received[0]["input"][1]["role"] == "user"
+    assert json.loads(received[0]["input"][1]["content"])["post_bundles"] == posts
+    assert all(
+        INSTRUCTIONS not in question["instructions"]
+        for body in received
+        for question in body["questions"]
+    )
 
 
 @pytest.mark.asyncio
