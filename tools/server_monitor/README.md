@@ -16,7 +16,7 @@
 
 ```bash
 cd infra/ai-db
-cp .env.example .env        # 세 값을 각자 정해서 채운다
+cp -n .env.example .env     # 세 값을 각자 정해서 채운다(영문·숫자)
 docker compose up -d
 ```
 
@@ -26,7 +26,7 @@ docker compose up -d
 ## 3. 앱 + 봇 띄우기
 
 ```bash
-cp .env.example .env        # 1절 값과 아래 세 값을 채운다
+cp -n .env.example .env     # 1절 값과 아래 값을 채운다
 # AI_DB_URL=mysql://ai_local:<AI_DB_PASSWORD>@host.docker.internal:3306/ai_local?ssl=required
 # AI_QDRANT_URL=http://host.docker.internal:6333
 # AI_QDRANT_API_KEY=<QDRANT_API_KEY>
