@@ -1,4 +1,4 @@
-# 조립 쓰레드: 로그 줄을 request_id별로 묶어 'request done'에서 request_result를 확정하고 SQLite 버퍼에 쓴다.
+# 조립 쓰레드: 로그 줄을 request_id별로 묶어 'request done'(HTTP) 또는 혼잡도 분석 끝 로그(Kafka consumer, 5초 뒤)에서 request_result를 확정하고 SQLite 버퍼에 쓴다.
 import queue
 import re
 import socket
@@ -30,6 +30,8 @@ REASON_HEADS = {
     "congestion_judge": ("congestion judge invalid",),
 }
 BAG_TTL = 180
+CONSUMER_GRACE = 5
+CONSUMER_END = ("congestion analysis done", "congestion analysis failed")
 
 
 def split(message: str) -> tuple[str, dict[str, str]]:
@@ -115,6 +117,7 @@ class Assembler(threading.Thread):
             if pending and (len(pending) >= 200 or now - last_flush >= 1.0):
                 self.flush(pending)
                 pending, last_flush = [], now
+            pending.extend(self.settle(time.time()))
             if now - last_stats >= self.stats_every:
                 pending.append(("worker_stats", self.stats()))
                 last_stats = now
@@ -133,6 +136,24 @@ class Assembler(threading.Thread):
             state.STATS["orphan"] += 1
         return {"ts": time.time(), "task_id": task_id(), "dropped": state.STATS["dropped"],
                 "orphan": state.STATS["orphan"], "inflight": len(self.bags)}
+
+    def finish(self, rid: str, bag: dict, details: dict, ts: float) -> list[tuple[str, dict]]:
+        last, n = self.seen.get(rid, (0.0, 0))
+        n = n + 1 if ts - last < 600 else 1
+        self.seen[rid] = (ts, n)
+        if len(self.seen) > 5000:
+            self.seen = {k: v for k, v in self.seen.items() if ts - v[0] < 600}
+        result = build_result(rid, bag, details, ts, n)
+        out = [("request_result", result)] if result else []
+        feature = result["feature"] if result else "other"
+        return out + [("llm_call", {**call, "feature": feature}) for call in bag.get("llm", [])]
+
+    def settle(self, now: float) -> list[tuple[str, dict]]:
+        out = []
+        for rid in [r for r, b in self.bags.items() if "consumer_end" in b and now - b["consumer_end"]["ts"] >= CONSUMER_GRACE]:
+            bag = self.bags.pop(rid)
+            out.extend(self.finish(rid, bag, bag["consumer_end"], bag["consumer_end"]["ts"]))
+        return out
 
     def handle(self, kind: str, item: dict) -> list[tuple[str, dict]]:
         out: list[tuple[str, dict]] = []
@@ -158,19 +179,12 @@ class Assembler(threading.Thread):
             bag["route_reason"] = CONGESTION_FALLBACK[head]
         elif head in ("congestion model call done", "congestion model call failed"):
             bag.setdefault("llm", []).append(congestion_call(item, details, head.endswith("done")))
+        elif head in CONSUMER_END:
+            bag["consumer_end"] = {"path": "/congestion-analyses", "code": details.get("code", "INTERNAL") if head.endswith("failed") else "OK",
+                                   "ms": details.get("ms", "0"), "ts": item["ts"]}
         elif head == "request done":
             self.bags.pop(rid, None)
-            last, n = self.seen.get(rid, (0.0, 0))
-            n = n + 1 if item["ts"] - last < 600 else 1
-            self.seen[rid] = (item["ts"], n)
-            if len(self.seen) > 5000:
-                self.seen = {k: v for k, v in self.seen.items() if item["ts"] - v[0] < 600}
-            result = build_result(rid, bag, details, item["ts"], n)
-            if result:
-                out.append(("request_result", result))
-            feature = result["feature"] if result else "other"
-            out.extend(("llm_call", {**call, "feature": feature}) for call in bag.get("llm", []))
-            return out
+            return out + self.finish(rid, bag, details, item["ts"])
         bag["events"].append((head, details))
         if head in ("image download failed", "image must be jpeg or png") and "host" in details:
             bag.setdefault("image", {})["host"] = details["host"]

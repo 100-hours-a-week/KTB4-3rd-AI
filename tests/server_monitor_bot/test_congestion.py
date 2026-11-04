@@ -1,4 +1,4 @@
-# 혼잡도(/congestion-analyses): feat/congestion-analysis 브랜치 로그 문구 그대로 → 기록·단계·사유·대체 처리·LLM 호출, 알림 문구, 지식 신호 검사.
+# 혼잡도(/congestion-analyses): feat/congestion-analysis 브랜치 로그 문구 그대로 → 기록·단계·사유·대체 처리·LLM 호출, 알림 문구, 지식 신호, Kafka consumer 경로(request done 없음) 검사.
 import time
 
 from app.Server_Monitor_Bot.channels.telegram import render as r
@@ -68,3 +68,26 @@ def test_alert_lines_and_knowledge_signal():
     item = {"id": "KN_CONGESTION_JUDGE", "title": "t", "symptom": "s", "cause": "c", "resolution": "r", "checks": [], "features": ["congestion"],
             "match": {"step_id": ["congestion_judge"], "reason": ["id_mismatch"]}, "policy_key": None, "alert": "diagnose", "severity": "medium"}
     assert validate(item, ()) == []
+
+
+def test_consumer_path_without_request_done():
+    a = Assembler(outbox=None)
+    for item in (log("congestion analysis started: spot_id=s1 event_id=k1 bundles=1 posts=3 comments=2", rid="k1"),
+                 log("congestion model call done: api=responses model=gpt-6-luna attempts=1 ms=3100 tokens_in=1200 tokens_out=300",
+                     rid="k1", logger=CLIENT),
+                 log("congestion analysis failed: spot_id=s1 event_id=k1 code=UPSTREAM_FAILED ms=4100", "WARNING", rid="k1"),
+                 log("congestion analysis done: spot_id=s2 level=LOW ms=2100", rid="k2")):
+        a.handle("log", item)
+    assert a.settle(time.time()) == []
+    rows = a.settle(time.time() + 10)
+    results = {x["request_id"]: x for kind, x in rows if kind == "request_result"}
+    assert (results["k1"]["feature"], results["k1"]["code"], results["k1"]["step_id"], results["k1"]["latency_ms"]) == \
+        ("congestion", "UPSTREAM_FAILED", "luna_call", 4100)
+    assert (results["k2"]["result"], results["k2"]["latency_ms"]) == ("ok", 2100)
+    assert [x["request_id"] for kind, x in rows if kind == "llm_call"] == ["k1"] and not a.bags
+
+
+def test_http_path_counts_once():
+    a = Assembler(outbox=None)
+    out = a.handle("log", log("congestion analysis done: spot_id=s1 level=LOW ms=2100")) + a.handle("log", done("OK", 200))
+    assert [kind for kind, _ in out].count("request_result") == 1 and a.settle(time.time() + 10) == []
