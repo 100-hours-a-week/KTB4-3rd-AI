@@ -35,10 +35,10 @@ def test_summary_uses_level_and_most_reported_concrete_cause(
 @pytest.mark.parametrize(
     ("code", "medium", "high"),
     [
-        ("RUSH_HOUR", "출퇴근하는 사람이 많아요.", "출퇴근하는 사람이 매우 많아요."),
+        ("RUSH_HOUR", "출퇴근·등하교하는 사람이 많아요.", "출퇴근·등하교하는 사람이 매우 많아요."),
         ("EVENT", "행사 때문에 사람이 많아요.", "행사 때문에 사람이 매우 많아요."),
         ("ACCIDENT", "사고 때문에 혼잡해요.", "사고 때문에 매우 혼잡해요."),
-        ("SERVICE_ISSUE", "고장이나 운행 중단으로 혼잡해요.", "고장이나 운행 중단으로 매우 혼잡해요."),
+        ("SERVICE_ISSUE", "고장·점검 등 운행 장애로 혼잡해요.", "고장·점검 등 운행 장애로 매우 혼잡해요."),
         ("DELAY_ISSUE", "운행이 늦거나 길이 막혀 혼잡해요.", "운행이 늦거나 길이 막혀 매우 혼잡해요."),
     ],
 )
@@ -61,7 +61,7 @@ def test_each_cause_summary_is_fixed_and_short(
         (["SERVICE_ISSUE", "ACCIDENT"], "사고와 운행 장애"),
         (["DELAY_ISSUE", "SERVICE_ISSUE"], "운행 장애와 지연·정체"),
         (["EVENT", "DELAY_ISSUE"], "지연·정체와 행사"),
-        (["RUSH_HOUR", "EVENT"], "행사와 출퇴근 인파"),
+        (["RUSH_HOUR", "EVENT"], "행사와 출퇴근·등하교 인파"),
         (["EVENT", "DELAY_ISSUE", "ACCIDENT"], "사고와 지연·정체"),
     ],
 )
