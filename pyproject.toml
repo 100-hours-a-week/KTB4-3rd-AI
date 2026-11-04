@@ -15,6 +15,9 @@ dependencies = [
     # Modal T4 호출·자동 배포(MODAL_TOKEN_ID_1, MODAL_TOKEN_SECRET_1). env만 넣으면 켜지도록 기본에 둔다.
     # 실행할 때만 불러오므로 키가 없으면 비용이 없다. GPU 쪽 패키지는 llm/modal_app.py 이미지에 있다.
     "modal>=1.0",
+    # 태스크 종료 전에 마지막 지표를 OTLP로 보낸다(OTLP_METRICS_ENABLED=true일 때만 동작).
+    "opentelemetry-sdk>=1.41",
+    "opentelemetry-exporter-otlp-proto-http>=1.41",
 ]
 
 [project.optional-dependencies]
