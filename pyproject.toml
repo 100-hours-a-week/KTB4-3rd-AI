@@ -27,7 +27,6 @@ monitor = [
     "pymysql>=1.1",
     "DBUtils>=3.1",
     "boto3>=1.35",
-    "mcp>=1.0",
     "markitdown[pdf,docx]==0.1.8",
     "discord.py>=2.7",
 ]
