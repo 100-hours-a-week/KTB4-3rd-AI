@@ -217,7 +217,7 @@ def run() -> None:
         flags = FlagCache(settings.buffer_dir / "flags.db")
         leader.start()
         threading.Thread(target=lambda: knowledge_seed.run(ctx), name="server-bot-p4", daemon=True).start()
-        every(stop, settings.section("detect").get("interval_s", 60), detector.Detector(ctx).tick, "p3")
+        every(stop, settings.section("detect").get("interval_s", 15), detector.Detector(ctx).tick, "p3")
         every(stop, 3, lambda: flag_sync.run(ctx, flags), "p8")
         every(stop, 5, sched.pull, "p9", when=leader.is_leader)
         daily_state: dict = {}
