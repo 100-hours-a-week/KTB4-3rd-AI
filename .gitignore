@@ -28,3 +28,5 @@ coverage.xml
 .hypothesis/
 infra/ai-db/mysql_data/
 infra/ai-db/qdrant_data/
+log_monitor.json
+bench_raw.json
