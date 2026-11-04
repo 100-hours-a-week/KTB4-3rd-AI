@@ -78,7 +78,7 @@ class Detector:
     def __init__(self, ctx):
         self.ctx = ctx
         self.cache: list[dict] = []
-        self.cached_at = 0.0
+        self.cached_at = float("-inf")
         self.last_rank: dict[str, int] = {}
 
     def knowledge(self) -> list[dict]:

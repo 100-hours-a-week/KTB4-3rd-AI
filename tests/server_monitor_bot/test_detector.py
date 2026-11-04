@@ -97,3 +97,8 @@ def test_drill_is_blind():
     assert action == "diagnose" and ctx.sent == [] and ctx.links == []
     assert [e["type"] for e in ctx.events] == ["alert.pipeline"]
     assert ctx.events[0]["payload"]["drill"] == {"run_id": "R-1", "hide_knowledge": []}
+
+
+def test_knowledge_loads_right_after_boot(monkeypatch):
+    monkeypatch.setattr(d.time, "monotonic", lambda: 1.0)
+    assert d.Detector(Fake()).knowledge()
