@@ -150,7 +150,7 @@ class Assembler(threading.Thread):
 
     def settle(self, now: float) -> list[tuple[str, dict]]:
         out = []
-        for rid in [r for r, b in self.bags.items() if "consumer_end" in b and now - b["consumer_end"]["ts"] >= CONSUMER_GRACE]:
+        for rid in [r for r, b in self.bags.items() if "consumer_end" in b and now - b["consumer_end"]["seen"] >= CONSUMER_GRACE]:
             bag = self.bags.pop(rid)
             out.extend(self.finish(rid, bag, bag["consumer_end"], bag["consumer_end"]["ts"]))
         return out
@@ -181,7 +181,7 @@ class Assembler(threading.Thread):
             bag.setdefault("llm", []).append(congestion_call(item, details, head.endswith("done")))
         elif head in CONSUMER_END:
             bag["consumer_end"] = {"path": "/congestion-analyses", "code": details.get("code", "INTERNAL") if head.endswith("failed") else "OK",
-                                   "ms": details.get("ms", "0"), "ts": item["ts"]}
+                                   "ms": details.get("ms", "0"), "ts": item["ts"], "seen": time.time()}
         elif head == "request done":
             self.bags.pop(rid, None)
             return out + self.finish(rid, bag, details, item["ts"])

@@ -91,3 +91,10 @@ def test_http_path_counts_once():
     a = Assembler(outbox=None)
     out = a.handle("log", log("congestion analysis done: spot_id=s1 level=LOW ms=2100")) + a.handle("log", done("OK", 200))
     assert [kind for kind, _ in out].count("request_result") == 1 and a.settle(time.time() + 10) == []
+
+
+def test_consumer_grace_counts_from_processing_time():
+    a = Assembler(outbox=None)
+    late = {**log("congestion analysis done: spot_id=s1 level=LOW ms=2100"), "ts": time.time() - 60}
+    a.handle("log", late)
+    assert a.settle(time.time()) == [] and a.handle("log", done("OK", 200))[0][0] == "request_result"
