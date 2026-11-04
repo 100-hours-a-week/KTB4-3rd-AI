@@ -41,3 +41,6 @@ local = [
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.Server_Monitor_Bot" = ["config/*.toml", "drills/*.json", "knowledge/*.json", "knowledge/docs/*.md", "knowledge/eval/*.json", "store/*.sql"]
