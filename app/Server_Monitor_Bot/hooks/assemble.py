@@ -9,21 +9,25 @@ from . import state
 from .mask import mask
 
 DETAIL = re.compile(r"(\w+)=(\S+)")
-FEATURES = {"/receipt": "receipt", "/taxi_meter": "taxi_meter"}
+FEATURES = {"/receipt": "receipt", "/taxi_meter": "taxi_meter", "/congestion-analyses": "congestion"}
 CODE_STEP = {
     "OK": "respond", "REQUEST_INVALID": "request_validate", "IMAGE_FETCH_FAILED": "image_fetch",
     "IMAGE_SIZE_INVALID": "image_validate", "IMAGE_TYPE_INVALID": "image_validate", "MODEL_NOT_READY": "model_ready",
     "UPSTREAM_FAILED": "luna_call", "JUDGE_PARSE_FAILED": "luna_parse", "INTERNAL": "unhandled", "QUEUE_TIMEOUT": "queue_wait",
+    "CONGESTION_PARSE_FAILED": "congestion_judge",
 }
-FALLBACK_STEP = {"model_not_ready": "model_ready", "upstream_failed": "pipe_ocr", "internal": "pipe_ocr", "judge_fallback": "pipe_judge"}
+FALLBACK_STEP = {"model_not_ready": "model_ready", "upstream_failed": "pipe_ocr", "internal": "pipe_ocr", "judge_fallback": "pipe_judge",
+                 "model_fallback": "congestion_model", "relevance_fallback": "congestion_relevance"}
+CONGESTION_FALLBACK = {"congestion model fallback": "model_fallback", "congestion relevance fallback": "relevance_fallback"}
 REASON_HEADS = {
     "image_fetch": ("image download failed",),
     "image_validate": ("image size is invalid", "image must be jpeg or png"),
-    "model_ready": ("openai api key is missing", "model marked down"),
-    "luna_call": ("openai request failed", "openai response shape is unexpected", "modal call failed"),
+    "model_ready": ("openai api key is missing", "model marked down", "congestion model key is missing"),
+    "luna_call": ("openai request failed", "openai response shape is unexpected", "modal call failed", "congestion model call failed"),
     "luna_parse": ("model output is not valid",),
     "unhandled": ("unhandled error",),
     "queue_wait": ("queue job expired",),
+    "congestion_judge": ("congestion judge invalid",),
 }
 BAG_TTL = 180
 
@@ -43,7 +47,7 @@ def reason_of(step: str, events: list[tuple[str, dict]]) -> dict:
         if head in heads:
             if head == "image size is invalid":
                 return {"reason": "size", "status": None, "error_code": None}
-            if head == "openai api key is missing":
+            if head in ("openai api key is missing", "congestion model key is missing"):
                 return {"reason": "key_missing", "status": None, "error_code": None}
             if head == "model marked down":
                 return {"reason": "model_down", "status": None, "error_code": None}
@@ -77,6 +81,16 @@ def build_result(rid: str, bag: dict, done: dict, ts: float, attempts: int) -> d
         "latency_ms": int(done.get("ms", 0) or 0), "image_bytes": int(image["bytes"]) if image.get("bytes", "").isdigit() else None,
         "image_type": image.get("type"), "image_host": image.get("host"), "attempts": attempts, "drill": rid.startswith("drill-"),
     }
+
+
+def congestion_call(item: dict, d: dict, ok: bool) -> dict:
+    num = lambda k: int(d[k]) if str(d.get(k, "")).isdigit() else None
+    code = (d.get("error") or "-/-").split("/")[-1]
+    return {"ts": item["ts"], "request_id": item.get("request_id"), "name": f"congestion_{d.get('api', '-')}", "device": "api",
+            "model": d.get("model", "-"), "prompt_ver": "-", "ms": num("ms") or 0, "result": "ok" if ok else "fail",
+            "reason": None if ok else d.get("reason"), "status": None if ok else num("status"),
+            "error_code": None if ok or code in ("-", "") else code, "input_tokens": num("tokens_in"), "output_tokens": num("tokens_out"),
+            "attempts": num("attempts") or 1}
 
 
 class Assembler(threading.Thread):
@@ -140,6 +154,10 @@ class Assembler(threading.Thread):
             bag["route"], bag["route_reason"] = details.get("route"), details.get("reason")
         elif head == "image loaded":
             bag["image"] = details
+        elif head in CONGESTION_FALLBACK:
+            bag["route_reason"] = CONGESTION_FALLBACK[head]
+        elif head in ("congestion model call done", "congestion model call failed"):
+            bag.setdefault("llm", []).append(congestion_call(item, details, head.endswith("done")))
         elif head == "request done":
             self.bags.pop(rid, None)
             last, n = self.seen.get(rid, (0.0, 0))

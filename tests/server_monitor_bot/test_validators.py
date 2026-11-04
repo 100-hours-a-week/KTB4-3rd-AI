@@ -25,6 +25,9 @@ def test_schema_rules():
     assert BY_SCHEMA["knowledge_draft"]({"op": "add", "target_id": None, "knowledge": item}, {**inputs, "op": "add"}) == []
     assert BY_SCHEMA["knowledge_draft"]({"op": "add", "knowledge": {**item, "match": {"reason": ["x"]}, "resolution": ""}},
                                         {**inputs, "op": "update"})
+    app_code = {**item, "match": {"step_id": ["image_fetch"], "error_code": ["IMAGE_FETCH_FAILED"]}}
+    assert BY_SCHEMA["knowledge_draft"]({"op": "add", "knowledge": app_code}, {**inputs, "op": "add"}) == [
+        "match.error_code에 앱 에러 코드: IMAGE_FETCH_FAILED (OpenAI 오류 코드만, 없으면 빼기)"]
 
 
 def test_exact_ids_and_number_tokens():

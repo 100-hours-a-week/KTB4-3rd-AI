@@ -1,26 +1,39 @@
 # MySQL 얇은 래퍼(PyMySQL + DBUtils PooledDB). 분석 프로세스 안에서만 만든다. 값은 항상 플레이스홀더로 넘긴다.
 from contextlib import contextmanager
 from typing import Any, Iterator, Mapping, Sequence
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import pymysql
 from dbutils.pooled_db import PooledDB
 from pymysql.cursors import DictCursor
 
 Params = Sequence[Any] | Mapping[str, Any] | None
+RDS_CA = "/opt/certs/rds-global-bundle.pem"
+
+
+def tls(query: dict[str, list[str]]) -> dict | None:
+    mode = (query.get("ssl") or [""])[0].lower()
+    if mode == "verify":
+        return {"ca": (query.get("ssl_ca") or [RDS_CA])[0], "check_hostname": True}
+    if mode == "required":
+        return {"check_hostname": False, "verify_mode": False}
+    if mode:
+        raise ValueError(f"unknown ssl mode: {mode}")
+    return None
 
 
 def parse_url(url: str) -> dict:
     u = urlparse(url)
     return {"host": u.hostname or "127.0.0.1", "port": u.port or 3306, "user": unquote(u.username or ""),
-            "password": unquote(u.password or ""), "database": u.path.lstrip("/")}
+            "password": unquote(u.password or ""), "database": u.path.lstrip("/"), "ssl": tls(parse_qs(u.query))}
 
 
 class MySQLDB:
-    def __init__(self, *, host: str, port: int, user: str, password: str, database: str, max_connections: int = 2):
+    def __init__(self, *, host: str, port: int, user: str, password: str, database: str, ssl: dict | None = None,
+                 max_connections: int = 2):
         self._conn_kwargs = dict(host=host, port=port, user=user, password=password, database=database, charset="utf8mb4",
                                  cursorclass=DictCursor, connect_timeout=5, read_timeout=10, write_timeout=10,
-                                 init_command="SET time_zone = '+00:00'")
+                                 init_command="SET time_zone = '+00:00'", ssl=ssl)
         self._pool = PooledDB(creator=pymysql, mincached=0, maxconnections=max_connections, blocking=True, ping=1,
                               autocommit=True, **self._conn_kwargs)
 

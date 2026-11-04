@@ -1,7 +1,7 @@
-# 작업 도구 9개: 절차와 결과 형식이 고정된 읽기 전용 함수. 결과는 {evidence_id, summary, data} 또는 {error}.
+# 작업 도구 11개: 절차와 결과 형식이 고정된 읽기 전용 함수. 결과는 {evidence_id, summary, data} 또는 {error}.
 import functools
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from langchain_core.tools import tool
 
@@ -10,7 +10,11 @@ from .registry import ctx, drill_mode, hide_knowledge
 
 
 def _hm() -> str:
-    return datetime.now(timezone.utc).strftime("%H:%M")
+    return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M")
+
+
+def _kst(value) -> str:
+    return value.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=9))).strftime("%H:%M") if value else "-"
 
 
 def _safe(fn):
@@ -33,6 +37,15 @@ def step_failures(feature: str, step_id: str, minutes: int = 15) -> dict:
 
 
 @_safe
+def overview(minutes: int = 60) -> dict:
+    r = ctx().repos.metrics.overview(minutes)
+    total, fails = sum(f["total"] for f in r["features"]), sum(f["fails"] for f in r["features"])
+    per = ", ".join(f"{f['feature']} {f['fails']}/{f['total']}" for f in r["features"]) or "요청 없음"
+    summary = f"최근 {r['minutes']}분 요청 {total}건 · 실패 {fails}건({per}) · 경고 로그 {r['warnings']}건 · 오류 로그 {r['errors']}건"
+    return wrap(f"metric:overview@{_hm()}", summary, r)
+
+
+@_safe
 def llm_calls(feature: str, minutes: int = 15) -> dict:
     r = ctx().repos.metrics.llm_summary(feature, minutes)
     if not r.get("calls"):
@@ -48,7 +61,7 @@ def dependency(dep: str, minutes: int = 15) -> dict:
     if "error" in r:
         return r
     failing = ", ".join(f"{f['feature']}.{f['step_id']} {f['fails']}/{f['total']}" for f in r["failing"]) or "동반 실패 없음"
-    return wrap(f"dep:{dep}@{_hm()}", f"{dep}(단계 {r['steps']}) 최근 {r['minutes']}분: {failing}", r)
+    return wrap(f"dep:{dep}@{_hm()}", f"{dep}(단계 {', '.join(map(str, r['steps']))}) 최근 {r['minutes']}분: {failing}", r)
 
 
 @_safe
@@ -64,16 +77,15 @@ def recent_deploy(hours: int = 24) -> dict:
     rows = ctx().repos.metrics.deploy_changes(hours)
     if not rows:
         return wrap(f"deploy:none@{_hm()}", f"최근 {hours}시간 배포 기록 없음", [])
-    summary = "; ".join(f"{r['image_tag']} 시작 {r['first_ts']:%H:%M}" for r in rows)
+    summary = "; ".join(f"{r['image_tag']} 시작 {_kst(r['first_ts'])}" for r in rows)
     return wrap(",".join(f"deploy:{r['image_tag']}" for r in rows), summary, rows)
 
 
 @_safe
-def knowledge_search(query: str, top_k: int = 5) -> dict:
+def knowledge_search(query: str, top_k: int = 5, step_ids: list[str] | None = None, vector: list[float] | None = None) -> dict:
     c = ctx()
-    agent = c.settings.section("agent")
-    rows = c.repos.knowledge.search(query, hide=list(hide_knowledge.get()), limit=min(int(top_k), 5),
-                                    min_score=agent.get("search_min_score", 0.35))
+    rows = c.repos.knowledge.search(query, hide=list(hide_knowledge.get()), step_ids=step_ids or (), limit=min(int(top_k), 5),
+                                    min_score=c.settings.section("search").get("knowledge_min_score", 0.4), vector=vector)
     if not rows:
         return wrap(f"kn:none@{_hm()}", "관련 지식 없음", [])
     data = [{"id": k["id"], "version": k["version"], "title": k["title"], "cause": k["cause"], "resolution": k["resolution"],
@@ -82,27 +94,40 @@ def knowledge_search(query: str, top_k: int = 5) -> dict:
 
 
 @_safe
-def chat_search(query: str, top_k: int = 5, incident_id: str | None = None) -> dict:
+def chat_search(query: str, top_k: int = 5, incident_id: str | None = None, vector: list[float] | None = None) -> dict:
     c = ctx()
     rows = c.repos.chat.search(query, incident_id=incident_id, limit=min(int(top_k), 5),
-                               min_score=c.settings.section("agent").get("search_min_score", 0.35))
+                               min_score=c.settings.section("search").get("chat_min_score", 0.35), vector=vector)
     if not rows:
         return wrap(f"chat:none@{_hm()}", "관련 대화 없음", [])
     return wrap(",".join(f"chat:{r['message_id']}" for r in rows), "; ".join(r["question"][:60] for r in rows), rows)
 
 
 @_safe
+def docs_search(query: str, top_k: int = 3, vector: list[float] | None = None) -> dict:
+    if drill_mode.get():
+        return {"error": "훈련 중에는 문서 검색을 쓰지 않음"}
+    c = ctx()
+    cfg = c.settings.section("search")
+    rows = c.repos.docs.search(query, limit=min(int(top_k), 5), min_score=cfg.get("docs_min_score", 0.4), per_doc=cfg.get("docs_per_file", 2),
+                               vector=vector)
+    if not rows:
+        return wrap(f"doc:none@{_hm()}", "관련 문서 없음", [])
+    data = [{"ref": f"doc:{r['doc_id']}#{r['order']}", "doc": r["doc_id"], "section": r["section"], "text": r["text"], "origin": r.get("origin"),
+             "score": r["score"]} for r in rows]
+    return wrap(",".join(d["ref"] for d in data), "; ".join(f"{d['doc']} · {d['section']}" for d in data), data)
+
+
+@_safe
 def flags() -> dict:
     rows = ctx().repos.adjust.flags()
-    summary = "; ".join(f"{r['key']}={r['value']} (만료 {r['expires_at']})" for r in rows) or "활성 플래그 없음"
+    summary = "; ".join(f"{r['key']}={r['value']} (만료 {_kst(r['expires_at'])})" for r in rows) or "활성 플래그 없음"
     return wrap(",".join(f"flag:{r['key']}" for r in rows) or f"flag:none@{_hm()}", summary, rows)
 
 
 @_safe
 def cloudwatch(filter_pattern: str, hours: int = 1) -> dict:
     c = ctx()
-    if c.stage not in ("dev", "prod"):
-        return {"error": "CloudWatch 조회는 dev·prod 태스크에서만 쓴다"}
     try:
         import boto3
     except ImportError:
@@ -115,6 +140,11 @@ def cloudwatch(filter_pattern: str, hours: int = 1) -> dict:
                                                  startTime=end - min(int(hours), 24) * 3600 * 1000, endTime=end, limit=50)
     events = [{"id": e["eventId"], "ts": e["timestamp"], "message": mask(e["message"])[:500]} for e in res.get("events", [])]
     return wrap(",".join(f"cw:{e['id']}" for e in events[:5]) or f"cw:none@{_hm()}", f"{len(events)}건", events)
+
+
+@tool(description="서비스 전체 상태: 최근 minutes분 기능별 요청·실패 수, 실패 상위 3(기능·단계·사유), 경고·오류 로그 수. 상태·최근 오류 질문에 먼저 쓴다. minutes: 1~1440.")
+def check_overview(minutes: int = 60) -> dict:
+    return overview(minutes)
 
 
 @tool(description="한 기능·단계의 실패율, 사유 분포 상위 5, 직전 같은 길이 구간과 비교. feature: receipt|taxi_meter, step_id: 단계 id, minutes: 1~60.")
@@ -152,6 +182,11 @@ def search_chat(query: str, top_k: int = 5, incident_id: str | None = None) -> d
     return chat_search(query, top_k, incident_id)
 
 
+@tool(description="사전 문서(서비스 구조·API 계약·로그·설정·외부 의존·배포 절차·정책 표·봇 사용법·GPU) 의미 검색. query: 질문 문장, top_k: 1~5.")
+def search_docs(query: str, top_k: int = 3) -> dict:
+    return docs_search(query, top_k)
+
+
 @tool(description="지금 활성인 조정·훈련 플래그와 만료 시각.")
 def active_flags() -> dict:
     return flags()
@@ -162,5 +197,5 @@ def query_cloudwatch(filter_pattern: str, hours: int = 1) -> dict:
     return cloudwatch(filter_pattern, hours)
 
 
-ALL = (check_step_failures, check_llm_calls, check_dependency, check_resources, check_recent_deploy, search_knowledge,
-       search_chat, active_flags, query_cloudwatch)
+ALL = (check_overview, check_step_failures, check_llm_calls, check_dependency, check_resources, check_recent_deploy, search_knowledge,
+       search_chat, search_docs, active_flags, query_cloudwatch)

@@ -1,4 +1,4 @@
-# W2 작성·검증: 구조화 출력 → 결정적 검증 → 오류를 주고 재작성(한도는 부르는 쪽이 정함).
+# W2 작성·검증: 구조화 출력 → 결정적 검증 → 오류·쓸 수 있는 근거 ID·수치를 주고 틀린 필드만 고쳐 재작성(한도는 부르는 쪽이 정함).
 import json
 from typing import Any, TypedDict
 
@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 
 from ..common import validators
+from ..common.evidence import haystack, known_ids, number_tokens
 from ..common.llm import invoke_with_budget
 from ..common.schemas import SCHEMAS
 
@@ -28,7 +29,10 @@ def render(s: WriteState) -> list:
     text = json.dumps(body, ensure_ascii=False, default=str)
     if s.get("errors"):
         text += "\n\n이전 출력:\n" + json.dumps(s.get("output"), ensure_ascii=False, default=str)
-        text += "\n검증 오류(모두 고쳐서 다시 써라):\n- " + "\n- ".join(s["errors"])
+        text += "\n검증 오류(모두 고쳐서 다시 써라. 오류가 난 필드만 고치고 나머지 필드는 이전 출력 그대로 둔다):\n- " + "\n- ".join(s["errors"])
+        ev = s.get("evidence", [])
+        text += "\n쓸 수 있는 근거 ID: " + ", ".join(sorted(known_ids(ev, s["inputs"])))
+        text += "\n쓸 수 있는 수치: " + ", ".join(sorted(number_tokens(haystack(ev, s["inputs"])), key=lambda n: (len(n), n))[:200])
     return [SystemMessage(content=s["instructions"]), HumanMessage(content=text)]
 
 

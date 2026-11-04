@@ -130,6 +130,18 @@ CREATE TABLE tg_state (
   last_update_id  BIGINT      NOT NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE tg_members (
+  user_id       BIGINT       NOT NULL PRIMARY KEY,
+  chat_id       BIGINT       NOT NULL,
+  name          VARCHAR(128) NULL,
+  username      VARCHAR(64)  NULL,
+  status        ENUM('pending','approved') NOT NULL,
+  requested_at  DATETIME(3)  NOT NULL,
+  decided_at    DATETIME(3)  NULL,
+  decided_by    BIGINT       NULL,
+  KEY idx_status (status)
+) ENGINE=InnoDB;
+
 CREATE TABLE schema_version (
   version      INT          PRIMARY KEY,
   description  VARCHAR(191) NOT NULL,
@@ -176,6 +188,13 @@ CREATE TABLE chat_messages (
   KEY idx_incident (incident_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE chat_summaries (
+  chat_id     BIGINT       PRIMARY KEY,
+  summary     TEXT         NOT NULL,
+  upto_id     BIGINT       NOT NULL,
+  updated_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB;
+
 CREATE TABLE adjustments (
   id              VARCHAR(32)  PRIMARY KEY,
   incident_id     VARCHAR(32)  NULL,
@@ -218,10 +237,10 @@ CREATE TABLE agent_runs (
 CREATE TABLE tg_messages (
   message_id  BIGINT       NOT NULL,
   chat_id     BIGINT       NOT NULL,
-  ref_kind    ENUM('incident','alert','draft','adjustment','answer') NOT NULL,
+  ref_kind    ENUM('incident','alert','draft','adjustment','answer','member','doc') NOT NULL,
   ref_id      VARCHAR(255) NOT NULL,
   ts          DATETIME(3)  NOT NULL,
-  PRIMARY KEY (message_id, chat_id)
+  PRIMARY KEY (message_id, chat_id, ref_kind)
 ) ENGINE=InnoDB;
 
 CREATE TABLE drill_runs (
@@ -264,45 +283,11 @@ CREATE TABLE eval_results (
   KEY idx_drill (drill_run_id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE knowledge (
-  id          VARCHAR(32)  PRIMARY KEY,
-  title       VARCHAR(191) NOT NULL,
-  features    JSON         NOT NULL,
-  step_ids    JSON         NOT NULL,
-  `match`     JSON         NOT NULL,
-  symptom     TEXT         NOT NULL,
-  cause       TEXT         NOT NULL,
-  resolution  TEXT         NOT NULL,
-  checks      JSON         NOT NULL,
-  policy_key  VARCHAR(64)  NULL,
-  alert       ENUM('immediate','diagnose') NOT NULL,
-  severity    ENUM('high','medium','low')  NOT NULL,
-  source      ENUM('seed','chat')          NOT NULL,
-  status      ENUM('active','deleted')     NOT NULL DEFAULT 'active',
-  version     INT          NOT NULL DEFAULT 1,
-  seed_hash   CHAR(12)     NULL,
-  embed_pending BOOLEAN    NOT NULL DEFAULT FALSE,
-  updated_by  VARCHAR(64)  NOT NULL,
-  updated_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  KEY idx_status (status),
-  KEY idx_source (source)
-) ENGINE=InnoDB;
-
-CREATE TABLE knowledge_versions (
-  knowledge_id   VARCHAR(32)  NOT NULL,
-  version        INT          NOT NULL,
-  body           JSON         NOT NULL,
-  changed_by     VARCHAR(64)  NOT NULL,
-  change_reason  TEXT         NULL,
-  draft_id       VARCHAR(32)  NULL,
-  changed_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  PRIMARY KEY (knowledge_id, version)
-) ENGINE=InnoDB;
-
 CREATE TABLE knowledge_drafts (
   id           VARCHAR(32)  PRIMARY KEY,
+  kind         ENUM('knowledge','doc') NOT NULL DEFAULT 'knowledge',
   op           ENUM('add','update','delete') NOT NULL,
-  target_id    VARCHAR(32)  NULL,
+  target_id    VARCHAR(191) NULL,
   target_version INT        NULL,
   body         JSON         NOT NULL,
   reason       TEXT         NOT NULL,

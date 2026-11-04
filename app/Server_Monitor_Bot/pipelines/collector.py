@@ -1,12 +1,10 @@
 # P1 수집(3초): 컨테이너 SQLite 버퍼를 MySQL 관측 테이블로 옮기고 1분 집계를 더한다. 실패하면 버퍼를 그대로 둔다.
-import logging
 import time
 from collections import defaultdict
 
 from ..channels.telegram import render
 from ..store.repos.metrics import bucket_rows
 
-log = logging.getLogger("app.Server_Monitor_Bot.collector")
 DOWN_ALERT_S = 300
 
 
@@ -42,13 +40,13 @@ class Collector:
                 if n < self.batch:
                     break
             self.failing_since, self.alerted = None, False
-        except Exception as exc:
+        except Exception:
             now = time.time()
             self.failing_since = self.failing_since or now
-            log.warning("collect failed: error=%s pending=%s", type(exc).__name__, self.outbox.count())
             if not self.alerted and now - self.failing_since >= DOWN_ALERT_S and self.ctx.telegram:
                 self.ctx.telegram.send(None, render.store_down(int((now - self.failing_since) // 60)))
                 self.alerted = True
+            raise
         return moved
 
     def drain(self, deadline_s: float = 10.0) -> None:

@@ -9,11 +9,12 @@ from .schemas import to_item
 NUMBER = re.compile(r"(?<![A-Za-z0-9_.:/-])(\d{2,}(?:\.\d+)?)(?![0-9_%:])")
 CLOCK = re.compile(r"\b\d{1,2}:\d{2}(?::\d{2})?\b|\b\d{4}-\d{2}-\d{2}\b")
 FILE_LINE = re.compile(r"\b((?:app/)?[\w./-]+\.py):(\d+)")
-TEXT_FIELDS = ("summary", "cause_text", "resolution_text", "answer_text", "reason")
+TEXT_FIELDS = ("summary", "cause_text", "resolution_text", "answer_text", "reason", "text")
 
 
 def texts(output: dict) -> list[str]:
     out = [str(output[k]) for k in TEXT_FIELDS if output.get(k)]
+    out += [str(i.get(f) or "") for i in output.get("expected_issues") or [] for f in ("problem", "solution")]
     k = output.get("knowledge")
     if isinstance(k, dict):
         out += [str(k.get(f) or "") for f in ("symptom", "cause", "resolution")] + [str(c) for c in k.get("checks") or []]
@@ -28,6 +29,13 @@ def common(output: dict, evidence: list[dict], inputs: dict) -> list[str]:
     for eid in output.get("evidence_ids") or []:
         if eid not in ids:
             errors.append(f"없는 근거 ID: {eid}")
+    for issue in output.get("expected_issues") or []:
+        cited = issue.get("evidence_ids") or []
+        if not cited:
+            errors.append(f"근거 없는 예상 문제: {issue.get('problem')} (근거가 없으면 빼고 '모릅니다'로 쓴다)")
+        errors += [f"예상 문제의 없는 근거 ID: {eid}" for eid in cited if eid not in ids]
+    if len(output.get("expected_issues") or []) > 3:
+        errors.append("예상 문제는 3개까지")
     for text in texts(output):
         clean = CLOCK.sub(" ", text)
         for num in NUMBER.findall(clean):
@@ -55,6 +63,12 @@ def diagnosis_report(output: dict, inputs: dict) -> list[str]:
 
 
 def chat_answer(output: dict, inputs: dict) -> list[str]:
+    cited = [e for e in output.get("evidence_ids") or [] if str(e).startswith("chat:")]
+    if cited:
+        return [f"지난 대화는 근거가 아님: {', '.join(cited)} (evidence_ids에서 빼기)"]
+    if str(output.get("intent", "")).startswith("doc_"):
+        if not str(output.get("target_doc") or "").startswith("doc:") or not output.get("edit_request"):
+            return ["문서 정정 의도면 target_doc(doc:<문서>#<번호>)과 edit_request 필요"]
     if output.get("intent") in ("knowledge_update", "knowledge_delete"):
         if output.get("target_knowledge_id") not in set(inputs.get("active_knowledge_ids") or []):
             return [f"수정·삭제 대상 지식이 없거나 삭제됨: {output.get('target_knowledge_id')}"]
@@ -73,7 +87,17 @@ def knowledge_draft(output: dict, inputs: dict) -> list[str]:
     if op != "delete":
         item = to_item(output.get("knowledge") or {})
         errors += validate_item({**item, "id": "KN_CHECK"}, inputs.get("policy_keys", ()))
+        errors += [f"match.error_code에 앱 에러 코드: {c} (OpenAI 오류 코드만, 없으면 빼기)"
+                   for c in (item.get("match") or {}).get("error_code") or [] if str(c).isupper()]
     return errors
+
+
+def doc_draft(output: dict, inputs: dict) -> list[str]:
+    if inputs.get("op") and output.get("op") != inputs["op"]:
+        return [f"요청한 작업({inputs['op']})과 op({output.get('op')})가 다름"]
+    if output.get("op") == "update" and not str(output.get("text") or "").strip():
+        return ["고친 본문이 비었음"]
+    return []
 
 
 def adjust_proposal(output: dict, inputs: dict) -> list[str]:
@@ -88,5 +112,5 @@ def adjust_proposal(output: dict, inputs: dict) -> list[str]:
     return errors
 
 
-BY_SCHEMA = {"diagnosis_report": diagnosis_report, "chat_answer": chat_answer, "knowledge_draft": knowledge_draft,
+BY_SCHEMA = {"diagnosis_report": diagnosis_report, "chat_answer": chat_answer, "knowledge_draft": knowledge_draft, "doc_draft": doc_draft,
              "adjust_proposal": adjust_proposal, "judge": lambda output, inputs: []}

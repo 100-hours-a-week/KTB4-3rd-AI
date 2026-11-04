@@ -1,8 +1,16 @@
 # 리더 선출: MySQL GET_LOCK을 전용 연결로 쥔다. 연결이 끊기면 MySQL이 자동 해제하고 10초 안에 다른 태스크가 넘겨받는다.
 import logging
+import random
 import threading
 
 log = logging.getLogger("app.Server_Monitor_Bot.leader")
+
+
+def backoff(interval: float, fails: int, cap: float = 60.0) -> float:
+    if fails <= 0:
+        return interval
+    wait = min(interval * 2 ** fails, cap)
+    return wait + random.uniform(0, wait / 2)
 
 
 class Leader(threading.Thread):
@@ -10,6 +18,7 @@ class Leader(threading.Thread):
         super().__init__(name="server-bot-leader", daemon=True)
         self.db, self.name_, self.stop_event, self.interval = db, f"server_bot:{stage}:leader", stop_event, interval
         self.conn = None
+        self.fails = 0
         self.leading = threading.Event()
 
     def is_leader(self) -> bool:
@@ -33,7 +42,9 @@ class Leader(threading.Thread):
                     cur.execute("SELECT IS_USED_LOCK(%s) = CONNECTION_ID() AS mine", (self.name_,))
                     if not cur.fetchone()["mine"]:
                         raise RuntimeError("lock lost")
+            self.fails = 0
         except Exception as exc:
+            self.fails += 1
             if self.leading.is_set():
                 log.warning("leader lost: error=%s", type(exc).__name__)
             self.leading.clear()
@@ -47,7 +58,7 @@ class Leader(threading.Thread):
     def run(self) -> None:
         while not self.stop_event.is_set():
             self.step()
-            self.stop_event.wait(self.interval)
+            self.stop_event.wait(backoff(self.interval, self.fails))
         self.leading.clear()
         if self.conn is not None:
             self.conn.close()

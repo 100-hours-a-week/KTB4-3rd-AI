@@ -71,6 +71,18 @@ class Metrics:
             return {"total": int(total), "fails": fails, "rate": round(fails / total, 4) if total else 0.0, "reasons": reasons}
         return {"feature": feature, "step_id": step_id, "minutes": minutes, "now": span(minutes, 0), "before": span(2 * minutes, minutes)}
 
+    def overview(self, minutes: int = 60) -> dict:
+        minutes = max(1, min(int(minutes), 1440))
+        since = "ts >= UTC_TIMESTAMP(3) - INTERVAL %s MINUTE"
+        features = self.db.fetch_all(f"SELECT feature, COUNT(*) AS total, SUM(result = 'fail') AS fails FROM request_results "
+                                     f"WHERE drill = FALSE AND {since} GROUP BY feature ORDER BY feature", (minutes,))
+        top = self.db.fetch_all(f"SELECT feature, step_id, reason, status, COUNT(*) AS n FROM request_results WHERE result = 'fail' "
+                                f"AND drill = FALSE AND {since} GROUP BY feature, step_id, reason, status ORDER BY n DESC LIMIT 3", (minutes,))
+        logs = self.db.fetch_one(f"SELECT SUM(level = 'WARNING') AS warnings, SUM(level IN ('ERROR', 'CRITICAL')) AS errors "
+                                 f"FROM app_logs WHERE {since}", (minutes,)) or {}
+        return {"minutes": minutes, "features": [{"feature": r["feature"], "total": int(r["total"]), "fails": int(r["fails"] or 0)} for r in features],
+                "top_failures": top, "warnings": int(logs.get("warnings") or 0), "errors": int(logs.get("errors") or 0)}
+
     def llm_summary(self, feature: str, minutes: int = 15) -> dict:
         minutes = max(1, min(int(minutes), 60))
         rows = self.db.fetch_all("SELECT id, ms, result, reason, status, error_code, attempts, model, COALESCE(input_tokens, 0) + "
@@ -123,11 +135,10 @@ class Metrics:
         return out
 
     def compare(self, feature: str, step_id: str, start, end) -> dict:
-        row = self.db.fetch_one("SELECT COUNT(*) AS calls, SUM(result = 'fail' AND step_id = %s) AS fails, "
-                                "MAX(latency_ms) AS max_ms FROM request_results WHERE feature = %s AND drill = FALSE AND ts >= %s AND ts < %s",
-                                (step_id, feature, start, end))
-        ms = [r["latency_ms"] for r in self.db.fetch_all("SELECT latency_ms FROM request_results WHERE feature = %s AND drill = FALSE "
-                                                          "AND ts >= %s AND ts < %s", (feature, start, end))]
+        same = "feature = %s AND drill = FALSE AND ts >= %s AND ts < %s AND (result != 'fail' OR step_id = %s)"
+        row = self.db.fetch_one(f"SELECT COUNT(*) AS calls, SUM(result = 'fail') AS fails, MAX(latency_ms) AS max_ms "
+                                f"FROM request_results WHERE {same}", (feature, start, end, step_id))
+        ms = [r["latency_ms"] for r in self.db.fetch_all(f"SELECT latency_ms FROM request_results WHERE {same}", (feature, start, end, step_id))]
         calls, fails = int(row["calls"] or 0), int(row["fails"] or 0)
         return {"calls": calls, "fails": fails, "fail_rate": fails / calls if calls else 0.0, "p95_ms": p95(ms)}
 

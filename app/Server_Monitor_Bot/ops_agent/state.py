@@ -31,6 +31,12 @@ class MainState(TypedDict, total=False):
 
 
 def message(text: str, *, chat_id: int | None = None, buttons=None, reply_to: int | None = None, ref: tuple | None = None,
-            chat_row: int | None = None, edit_message_id: int | None = None, edit_text: str | None = None) -> dict:
+            chat_row: int | None = None, edit_message_id: int | None = None, edit_text: str | None = None,
+            edits: list | None = None, html: bool = False, mark: bool = False) -> dict:
     return {"text": text, "chat_id": chat_id, "buttons": buttons, "reply_to": reply_to, "ref": ref, "chat_row": chat_row,
-            "edit_message_id": edit_message_id, "edit_text": edit_text}
+            "edit_message_id": edit_message_id, "edit_text": edit_text, "edits": edits, "html": html, "mark": mark}
+
+
+def marks(coord, kind: str, ref_id: str, buttons, text: str | None = None, hours: int | None = None) -> list[dict]:
+    return [message(text or "", chat_id=chat, buttons=buttons, edit_message_id=mid, edit_text=text, mark=True)
+            for chat, mid in coord.messages_of(kind, ref_id, hours)]

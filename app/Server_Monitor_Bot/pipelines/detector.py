@@ -51,7 +51,7 @@ def grade(item: dict, min_sample: int = 20) -> int:
         return HIGH if ratio >= 0.5 else MEDIUM if ratio >= 0.2 else LOW
     if step in ("unhandled", "model_ready"):
         rank = HIGH
-    elif step in ("luna_call", "luna_parse", "queue_wait"):
+    elif step in ("luna_call", "luna_parse", "queue_wait", "congestion_judge"):
         rank = HIGH if n >= 3 else MEDIUM
     elif step == "request_validate":
         rank = HIGH if n >= 10 else LOW
@@ -89,6 +89,13 @@ class Detector:
             except Exception as exc:
                 log.warning("knowledge cache failed: error=%s", type(exc).__name__)
         return self.cache
+
+    def samples(self, sig: dict, drill: bool, limit: int = 5) -> list[str]:
+        try:
+            return self.ctx.repos.metrics.samples(sig["feature"], sig["step_id"], sig["reason"], drill, limit=limit)
+        except Exception as exc:
+            log.warning("sample lookup failed: error=%s", type(exc).__name__)
+            return []
 
     def drill_info(self) -> dict:
         run = self.ctx.repos.drills.current() or {}
@@ -130,17 +137,19 @@ class Detector:
         if action == "diagnose":
             self.ctx.enqueue(new_event("alert.pipeline", {
                 "alert_key": item["key"], "feature": s["feature"], "step_id": s["step_id"], "reason": s["reason"], "signal": s,
-                "summary": f"{render.what(item)} {render.counts(item)}", "rank": rank, "drill": self.drill_info() if item["drill"] else None,
-                "sample_ids": repos.metrics.samples(s["feature"], s["step_id"], s["reason"], item["drill"]),
+                "summary": f"{render.title(s)} {render.count_line(s, item['at'])}", "rank": rank, "drill": self.drill_info() if item["drill"] else None,
+                "sample_ids": self.samples(s, item["drill"]),
                 "knowledge_id": k["id"] if k else None, "detected_at": item["at"]}, source="detector"), None)
             return action
-        text = render.immediate(item, k) if action == "immediate" else render.summary(item)
+        item["samples"] = self.samples(s, item["drill"], 2)
+        text = render.alert_known(item, k) if action == "immediate" else render.alert_summary(item)
         telegram = self.ctx.telegram
-        mid = telegram.send(None, text) if telegram else None
-        if mid:
-            repos.coord.link_message(mid, telegram.default_chat, "alert", f"{item['key']}@{int(item['at'])}")
+        sent = telegram.broadcast(text) if telegram else []
+        for chat, message_id in sent:
+            repos.coord.link_message(message_id, chat, "alert", f"{item['key']}@{int(item['at'])}")
+        mid = sent[0][1] if sent else None
         if action == "immediate" and k.get("policy_key") and not item["drill"]:
             self.ctx.enqueue(new_event("signal.policy", {
                 "policy_key": k["policy_key"], "knowledge_id": k["id"], "alert_key": item["key"], "message_id": mid,
-                "message_text": telegram.text(text) if telegram else text, "signal": s}, source="detector"), None)
+                "messages": [list(pair) for pair in sent], "message_text": telegram.text(text) if telegram else text, "signal": s}, source="detector"), None)
         return action

@@ -28,7 +28,10 @@ def fake_repos():
     coord = Recorder()
     coord.returns = {"seen_event": False, "tokens_today": 0}
     chat = Recorder()
-    chat.returns = {"recent": [], "search": [], "save_turn": 11, "incident_of_message": None}
+    chat.returns = {"recent": [], "search": [], "save_turn": 11, "incident_of_message": None, "summary_of": {"summary": "", "upto_id": 0},
+                    "since": []}
+    docs = Recorder()
+    docs.returns = {"search": []}
     adjust = Recorder()
     adjust.returns = {"flags": [], "active_for_knob": None, "propose": "A-20261026-ab12"}
     knowledge = Recorder()
@@ -40,15 +43,16 @@ def fake_repos():
                               llm_summary=lambda f, m: {"feature": f, "minutes": m, "calls": 0, "sample_ids": []})
     records = SimpleNamespace(recent_logs=lambda m, q=None: [{"id": 5, "message": "openai request failed: status=429"}],
                               request_trace=lambda r: {"result": None, "logs": [], "llm_calls": []})
-    return SimpleNamespace(coord=coord, chat=chat, adjust=adjust, knowledge=knowledge, incidents=incidents, metrics=metrics,
-                           records=records, drills=Recorder())
+    members = Recorder()
+    members.returns = {"is_member": False}
+    return SimpleNamespace(coord=coord, chat=chat, docs=docs, adjust=adjust, knowledge=knowledge, incidents=incidents, metrics=metrics,
+                           records=records, drills=Recorder(), members=members)
 
 
 def ctx_with(llm):
-    s = load({"APP_STAGE": "prod"})
-    s.cfg["telegram"] = {**s.cfg["telegram"], "owner_ids": [1], "chat_id": 100}
+    s = load({"AI_DB_URL": "mysql://u:p@h/ai_prod", "Admin_Telegram_ID": "1"})
     tg = Recorder()
-    tg.returns = {"send": 555, "edit": True}
+    tg.returns = {"send": 555, "edit": True, "broadcast": [(100, 555)]}
     queued = []
     ctx = Ctx(settings=s, repos=fake_repos(), telegram=tg, task_id="abcdef123", enqueue=lambda e, nb=None: queued.append((e, nb)))
     ctx.llm = llm
@@ -57,7 +61,7 @@ def ctx_with(llm):
 
 REPORT = {"summary": "영수증 luna_call 실패 4/9 (5분)", "cause_text": "OpenAI 분당 요청 한도 초과", "resolution_text": "동시 호출 상한 축소",
           "step_id": "luna_call", "confidence": "high", "evidence_ids": ["kn:KN_OPENAI_RATE_LIMIT@v1"], "knowledge_ids": ["KN_OPENAI_RATE_LIMIT"],
-          "policy_key": "llm.max_concurrency", "unknown": False}
+          "policy_key": "llm.max_concurrency", "unknown": False, "expected_issues": []}
 PROPOSAL = {"value": 3, "ttl_min": 30, "reason": "동시 최대 6", "evidence_ids": []}
 
 
@@ -67,13 +71,16 @@ def test_alert_to_report_with_proposal():
                                                       "step_id": "luna_call", "reason": "http_4xx", "summary": "429 급증", "detected_at": 0}))
     assert out["outcome"] == "ok", out
     assert out["node_path"] == ["ingest", "route", "diagnose", "chain", "propose", "publish"]
-    sent = [c for c in tg.calls if c[0] == "send"]
-    assert len(sent) == 1 and "⚙️ 조정 제안: llm.max_concurrency 제한 없음 → 3 (30분)" in sent[0][1][1] and sent[0][1][2]
+    sent = [c for c in tg.calls if c[0] in ("send", "broadcast")]
+    assert len(sent) == 1 and sent[0][0] == "broadcast"
+    text = sent[0][1][0]
+    assert "⚙️ 조정 제안 · LLM 동시 호출 상한(llm.max_concurrency)\n제한 없음 → 3 · 30분 유지" in text and sent[0][1][1]
+    assert text.index("⚙️ 조정 제안") < text.index("↩ 답장하면")
     assert ("link_message", (555, 100, "incident", "I-20261026-7f3a"), {}) in ctx.repos.coord.calls
 
 
-ANSWER = {"answer_text": "정리본을 만들겠습니다", "evidence_ids": [], "intent": "knowledge_add", "target_knowledge_id": None,
-          "incident_id": None, "edit_request": "429 한도 초과 대응을 지식으로"}
+ANSWER = {"answer_text": "정리본을 만들겠습니다", "evidence_ids": [], "intent": "knowledge_add", "target_knowledge_id": None, "target_doc": None,
+          "incident_id": None, "edit_request": "429 한도 초과 대응을 지식으로", "expected_issues": []}
 ITEM = {"title": "한도 초과 새 대응", "features": [], "step_ids": ["luna_call"], "match": {"step_id": ["luna_call"], "status": [429]},
         "symptom": "429 급증", "cause": "한도 초과", "resolution": "한도 상향 요청", "checks": [], "policy_key": None, "alert": "diagnose",
         "severity": "medium"}

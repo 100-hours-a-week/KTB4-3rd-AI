@@ -1,13 +1,15 @@
 # 대화용 원시 도구 4개: 요청 추적, 최근 경고 로그, 코드 검색, 코드 읽기. 코드는 조회만 한다.
+import re
 from pathlib import Path
 
 from langchain_core.tools import tool
 
 from ..common.evidence import wrap
-from .registry import ctx
+from .registry import ctx, drill_mode
 
 APP = Path(__file__).resolve().parents[3]
 SKIP = "Server_Monitor_Bot"
+DRILL_WORD = re.compile(r"drill", re.IGNORECASE)
 
 
 def _rel(path: Path) -> str:
@@ -30,8 +32,13 @@ def trace(request_id: str) -> dict:
     res = r["result"]
     if not res:
         return {"error": f"{request_id} 기록 없음(30일 보존, 사용자 단위 추적 안 함)"}
-    summary = (f"{res['feature']} {res['result']} code={res['code']} step={res['step_id']} reason={res['reason']} "
-               f"route={res['route']}({res['route_reason']}) {res['latency_ms']}ms, LLM {len(r['llm_calls'])}건")
+    if drill_mode.get():
+        res = {k: v for k, v in res.items() if k != "drill"}
+        r = {**r, "result": res, "logs": [{**x, **{f: DRILL_WORD.sub("-", x[f]) for f in ("head", "message") if isinstance(x.get(f), str)}}
+                                          for x in r["logs"]]}
+    route = f" route={res['route']}({res['route_reason'] or '-'})" if res.get("route") else ""
+    summary = (f"{res['feature']} {res['result']} code={res['code']} step={res['step_id']} reason={res['reason'] or '-'}{route} "
+               f"{res['latency_ms']}ms, LLM {len(r['llm_calls'])}건")
     return wrap(f"req:{request_id}", summary, r)
 
 

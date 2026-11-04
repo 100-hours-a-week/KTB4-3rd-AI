@@ -9,7 +9,7 @@ dependencies = [
     "httpx>=0.28",
     "pillow>=12",
     # 로컬 Qdrant(QdrantClient(path=...)). 서버로 옮기면 url=만 바꾼다.
-    "qdrant-client>=1.19",
+    "qdrant-client==1.20.0",
     # Cloud Prometheus가 수집하는 /metrics(요청량, 에러율, 지연).
     "prometheus-fastapi-instrumentator>=8.1",
     # Modal T4 호출·자동 배포(MODAL_TOKEN_ID_1, MODAL_TOKEN_SECRET_1). env만 넣으면 켜지도록 기본에 둔다.
@@ -25,6 +25,8 @@ monitor = [
     "DBUtils>=3.1",
     "boto3>=1.35",
     "mcp>=1.0",
+    "markitdown[pdf,docx]==0.1.8",
+    "discord.py>=2.7",
 ]
 # 이 서버에서 OCR과 openjev를 돌릴 때(LOCAL_DEVICE=TRUE). GPU 서버는 paddlepaddle-gpu로 바꾼다.
 local = [
@@ -33,3 +35,6 @@ local = [
     "torch>=2.13",
     "transformers>=5.16",
 ]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

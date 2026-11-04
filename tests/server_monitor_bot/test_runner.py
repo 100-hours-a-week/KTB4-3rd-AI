@@ -26,7 +26,7 @@ def test_daily_once_per_day(monkeypatch):
 
 
 def test_start_without_db_is_quiet(tmp_path):
-    env = {"APP_STAGE": "local", "SERVER_BOT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"}
+    env = {"SERVER_BOT_DIR": str(tmp_path), "PATH": "/usr/bin:/bin"}
     res = subprocess.run([sys.executable, "-c", "from app.Server_Monitor_Bot.runtime.runner import main; main()"],
                          env=env, capture_output=True, text=True, timeout=60)
     assert res.returncode == 0 and "Traceback" not in res.stderr

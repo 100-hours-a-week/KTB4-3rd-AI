@@ -7,6 +7,7 @@ import queue
 import random
 import signal
 import socket
+import sys
 import threading
 import time
 import urllib.request
@@ -21,7 +22,7 @@ from ..config.settings import load
 from ..pipelines import collector, detector, flag_sync, knowledge_seed, report, retention, sampler, unmatched
 from ..store.buffer import FlagCache, Outbox
 from .context import Ctx
-from .leader import Leader
+from .leader import Leader, backoff
 from .scheduler import Scheduler
 
 log = logging.getLogger("app.Server_Monitor_Bot")
@@ -34,9 +35,14 @@ def setup_logging(buffer_dir) -> None:
     log.propagate = False
     log.setLevel(logging.INFO)
     if not any(isinstance(h, RotatingFileHandler) for h in log.handlers):
+        fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
         handler = RotatingFileHandler(buffer_dir / "monitor.log", maxBytes=5 * 1024 * 1024, backupCount=3)
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        handler.setFormatter(fmt)
+        console = logging.StreamHandler(sys.stdout)
+        console.setLevel(logging.WARNING)
+        console.setFormatter(fmt)
         log.addHandler(handler)
+        log.addHandler(console)
 
 
 def image_tag() -> str:
@@ -54,13 +60,16 @@ def image_tag() -> str:
 
 def every(stop: threading.Event, interval: float, fn, name: str, when=lambda: True) -> threading.Thread:
     def loop():
+        fails = 0
         while not stop.is_set():
             if when():
                 try:
                     fn()
+                    fails = 0
                 except Exception as exc:
-                    log.warning("%s failed: error=%s", name, type(exc).__name__)
-            stop.wait(interval)
+                    fails += 1
+                    log.warning("%s failed: error=%s fails=%s", name, type(exc).__name__, fails)
+            stop.wait(backoff(interval, fails))
 
     t = threading.Thread(target=loop, name=f"server-bot-{name}", daemon=True)
     t.start()
@@ -92,16 +101,20 @@ def connect(settings, stop: threading.Event, telegram: TelegramClient):
 def vector(settings):
     try:
         from ..store.embed import Embedder
-        from ..store.vector import VectorDB
+        from ..store.vector import COLLECTIONS, VectorDB
 
         model = settings.section("model")
         vec = VectorDB(stage=settings.stage, url=settings.qdrant_url, api_key=settings.qdrant_key, dim=model.get("embedding_dim", 1536))
-        for name in ("knowledge", "chat"):
-            vec.ensure(name)
-        return vec, Embedder(settings.openai_key, model.get("embedding", "text-embedding-3-small"))
+        embed = Embedder(settings.openai_key, model.get("embedding", "text-embedding-3-small"))
     except Exception as exc:
         log.warning("vector store unavailable: error=%s", type(exc).__name__)
         return None, None
+    for name in COLLECTIONS:
+        try:
+            vec.ensure(name)
+        except Exception as exc:
+            log.warning("vector ensure failed: collection=%s error=%s", name, type(exc).__name__)
+    return vec, embed
 
 
 def consume(ctx, sched: Scheduler, stop: threading.Event, analysis: threading.Event) -> None:
@@ -112,7 +125,7 @@ def consume(ctx, sched: Scheduler, stop: threading.Event, analysis: threading.Ev
         run_event = None
     while not stop.is_set():
         try:
-            event = sched.queue.get(timeout=1)
+            event = sched.get(timeout=1)
         except queue.Empty:
             continue
         if run_event and analysis.is_set():
@@ -167,9 +180,8 @@ def run() -> None:
     stop, analysis = threading.Event(), threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     task_id, tag = socket.gethostname(), image_tag()
-    tg_cfg = settings.section("telegram")
     stats = {"send_fail": 0, "restarts": 0}
-    telegram = TelegramClient(settings.telegram_token, tg_cfg.get("chat_id") or None, f"[{settings.stage}·{task_id[:6]}]", stats)
+    telegram = TelegramClient(settings.telegram_token, settings.admin_ids, f"[{settings.stage.upper()}]", stats)
     outbox = Outbox(settings.buffer_dir / "buffer.db", settings.section("buffer").get("max_mb", 50))
     db = connect(settings, stop, telegram)
     if db is None:
@@ -179,7 +191,14 @@ def run() -> None:
 
     vec, embed = vector(settings)
     repos = Repos(db, vec, embed, tuple(settings.policy))
-    sched = Scheduler(repos.coord, task_id)
+    telegram.recipients = repos.members.chats
+    if settings.discord_token and settings.discord_channel_id:
+        from ..channels.discord.client import DiscordClient
+        from ..channels.fanout import Channels
+
+        telegram.recipients = lambda: [c for c in repos.members.chats() if c != settings.discord_channel_id]
+        telegram = Channels(telegram, DiscordClient(settings.discord_token, settings.discord_channel_id, telegram.head, stats))
+    sched = Scheduler(repos.coord, task_id, telegram, **settings.section("queue"))
     leader = Leader(db, settings.stage, stop)
     ctx = Ctx(settings=settings, repos=repos, telegram=telegram, task_id=task_id, image_tag=tag,
               enqueue=sched.enqueue, is_leader=leader.is_leader, stats=stats)
@@ -204,6 +223,10 @@ def run() -> None:
         daily_state: dict = {}
         every(stop, 30, lambda: daily(ctx, daily_state), "daily", when=leader.is_leader)
         Receiver(ctx, stop).start()
+        if settings.discord_token and settings.discord_channel_id:
+            from ..channels.discord.receiver import DiscordReceiver
+
+            DiscordReceiver(ctx, stop).start()
         threading.Thread(target=consume, args=(ctx, sched, stop, analysis), name="server-bot-events", daemon=True).start()
     while not stop.is_set():
         if sampler.rss_bytes() > RSS_LIMIT:

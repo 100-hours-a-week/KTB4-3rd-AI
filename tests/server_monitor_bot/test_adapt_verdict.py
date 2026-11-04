@@ -7,7 +7,7 @@ def m(calls, fails, p95=None):
 
 
 def test_verdict_order():
-    assert verdict(m(20, 4), m(4, 0)) == "no_effect"
+    assert verdict(m(20, 4), m(4, 0)) == "pending"
     assert verdict(m(20, 4, 10000), m(20, 0, 13000)) == "worse"
     assert verdict(m(20, 0), m(20, 3)) == "worse"
     assert verdict(m(20, 0), m(20, 2)) == "no_effect"

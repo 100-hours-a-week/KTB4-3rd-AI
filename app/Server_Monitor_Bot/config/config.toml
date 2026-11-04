@@ -1,4 +1,4 @@
-# 모니터 설정. 스테이지·시크릿은 env(APP_STAGE, AI_DB_URL …), 나머지는 여기서 고친다.
+# 모니터 설정. 시크릿은 env(AI_DB_URL …)이고 스테이지는 그 DB 이름(ai_<stage>)으로 정한다. 나머지는 여기서 고친다.
 
 [stages.local]
 enabled = true
@@ -10,26 +10,28 @@ enabled = true
 drill = true
 features = { F1 = true, F2 = true, F3 = true, F4 = true, F5 = true, F6 = true, F7 = true, F8 = true, F9 = true }
 
+[stages.stg]
+enabled = true
+drill = false
+features = { F1 = true, F2 = true, F3 = true, F4 = true, F5 = true, F6 = true, F7 = true, F8 = false, F9 = true }
+
 [stages.prod]
 enabled = true
 drill = false
 features = { F1 = true, F2 = true, F3 = true, F4 = true, F5 = true, F6 = true, F7 = true, F8 = false, F9 = true }
 
 [telegram]
-owner_ids = []
-drill_operator_ids = []
-chat_id = 0
 poll_timeout_s = 30
 
 [budget]
-daily_tokens = 300000
+daily_tokens = 1000000
 drill_daily_tokens = 1500000
-run_tokens = 30000
+run_tokens = 80000
 run_ms = 120000
-single_tokens = 6000
-rag_tokens = 8000
+single_tokens = 20000
+rag_tokens = 25000
 judge_tokens = 1000
-reserve_tokens = 5000
+reserve_tokens = 45000
 reserve_ms = 25000
 
 [model]
@@ -37,27 +39,50 @@ chat = "gpt-6-luna"
 embedding = "text-embedding-3-small"
 embedding_dim = 1536
 timeout_s = 30
+decision = "gpt-6-luna"
+decision_min_confidence = 0.6
+decision_timeout_s = 5
 
 [detect]
-interval_s = 60
+interval_s = 15
 window_s = 300
 min_sample = 20
 quiet_s = 600
 recent_incident_s = 3600
 
+[queue]
+user_max = 20
+dedupe_s = 60
+
 [agent]
-diagnose_rounds = 6
-chat_rounds = 4
+diagnose_rounds = 3
+chat_rounds = 3
 diagnose_retries = 2
 chat_retries = 1
 knowledge_retries = 2
 propose_retries = 1
-history_turns = 20
-search_top_k = 5
-search_min_score = 0.35
 draft_ttl_h = 24
 observe_after_s = 600
 chain_depth = 3
+
+[search]
+knowledge_min_score = 0.4
+docs_min_score = 0.4
+chat_min_score = 0.35
+docs_prefetch = 3
+docs_per_file = 2
+
+[docs]
+max_mb = 20
+timeout_s = 60
+chunk_chars = 1500
+overlap = 0.95
+
+[chat]
+context_high_tokens = 8000
+context_low_tokens = 4000
+summary_max_tokens = 1500
+chars_per_token = 1.5
 
 [retention]
 raw_days = 30

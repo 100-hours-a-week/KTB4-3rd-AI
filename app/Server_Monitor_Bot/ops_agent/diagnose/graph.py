@@ -3,6 +3,7 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from ...channels.telegram import render
 from ..state import message
 from .nodes import Diagnose
 
@@ -28,7 +29,7 @@ def build_diagnose(env):
     n = Diagnose(env)
 
     def unavailable(s):
-        return {"outbox": [message(f"[저장소 불가] {s['payload'].get('summary') or s['payload'].get('alert_key')} — 근거 없이 진단하지 않습니다")],
+        return {"outbox": [message(render.store_unavailable(s["payload"].get("summary") or s["payload"].get("alert_key")))],
                 "outcome": "error"}
 
     g = StateGraph(DiagState)

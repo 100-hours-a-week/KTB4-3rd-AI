@@ -23,11 +23,11 @@ def test_enqueue_schedule_pull_done():
     c = Coord()
     s = Scheduler(c, "t")
     assert s.enqueue(new_event("user.message"))
-    assert s.queue.get_nowait()["type"] == "user.message"
+    assert s.get()["type"] == "user.message"
     assert s.enqueue(new_event("adapt.observe"), time.time() + 600) and s.queue.empty()
     assert not s.enqueue(new_event("x", chain_depth=4))
     assert s.pull() == 1
-    e = s.queue.get_nowait()
+    e = s.get()
     assert e["source"] == "scheduler"
     s.done(e)
     assert c.done == [7]

@@ -22,7 +22,7 @@ def max_ttl(policy: dict, stage: str) -> int:
 
 def verdict(before: dict, after: dict) -> str:
     if after.get("calls", 0) < 5:
-        return "no_effect"
+        return "pending"
     bp, ap = before.get("p95_ms"), after.get("p95_ms")
     if bp and ap is not None and ap >= bp * 1.3:
         return "worse"

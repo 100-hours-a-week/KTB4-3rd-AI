@@ -1,4 +1,4 @@
-# S3 지식 정리 그래프: collect → draft(W2) → confirm.
+# S3 지식·문서 정리 그래프: collect → draft(W2) → confirm. 대상이 없거나 저장소 문서면 stop 안내만.
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -9,10 +9,12 @@ from .nodes import KnowledgeEdit
 class KnowledgeState(TypedDict, total=False):
     edit: dict
     budget: Any
-    history: list[dict]
+    history: dict
     incident: dict | None
     target: dict | None
     similar: list
+    doc: dict
+    stop: str
     evidence: list[dict]
     result: dict
     op: str

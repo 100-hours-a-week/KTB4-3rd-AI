@@ -50,8 +50,15 @@ class Coord:
         self.db.execute("INSERT IGNORE INTO tg_messages (message_id, chat_id, ref_kind, ref_id, ts) VALUES (%s, %s, %s, %s, NOW(3))",
                         (message_id, chat_id, ref_kind, str(ref_id)[:255]))
 
+    def messages_of(self, ref_kind: str, ref_id: str, hours: int | None = None) -> list[tuple[int, int]]:
+        recent = " AND ts >= NOW(3) - INTERVAL %s HOUR" if hours else ""
+        rows = self.db.fetch_all(f"SELECT chat_id, message_id FROM tg_messages WHERE ref_kind = %s AND ref_id = %s{recent}",
+                                 (ref_kind, str(ref_id)[:255], *((hours,) if hours else ())))
+        return [(int(r["chat_id"]), int(r["message_id"])) for r in rows]
+
     def ref_of(self, chat_id: int, message_id: int) -> tuple[str, str] | None:
-        row = self.db.fetch_one("SELECT ref_kind, ref_id FROM tg_messages WHERE chat_id = %s AND message_id = %s", (chat_id, message_id))
+        row = self.db.fetch_one("SELECT ref_kind, ref_id FROM tg_messages WHERE chat_id = %s AND message_id = %s "
+                                "ORDER BY ref_kind = 'adjustment' LIMIT 1", (chat_id, message_id))
         return (row["ref_kind"], row["ref_id"]) if row else None
 
     def seen_event(self, event_id: str, within_s: int = 3600) -> bool:

@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 
 STEPS = ("request_validate", "image_fetch", "image_validate", "model_ready", "pipe_ocr", "pipe_judge",
-         "luna_call", "luna_parse", "respond", "unhandled", "queue_wait")
-FEATURES = ("receipt", "taxi_meter")
+         "luna_call", "luna_parse", "respond", "unhandled", "queue_wait", "congestion_judge")
+FEATURES = ("receipt", "taxi_meter", "congestion")
 MATCH_KEYS = ("step_id", "status", "error_code", "reason", "head", "min_ms", "min_ratio")
 ALERTS = ("immediate", "diagnose")
 SEVERITIES = {"high": 3, "medium": 2, "low": 1}
@@ -39,7 +39,7 @@ def validate(item: dict, policy_keys) -> list[str]:
     if any(s not in STEPS for s in item.get("step_ids") or []):
         errors.append("step_ids에 모르는 단계")
     if any(f not in FEATURES for f in item.get("features") or []):
-        errors.append("features에 모르는 기능")
+        errors.append(f"features에 모르는 기능(쓸 수 있는 값: {', '.join(FEATURES)})")
     if not isinstance(item.get("checks", []), list):
         errors.append("checks는 목록")
     if item.get("policy_key") not in (None, *policy_keys):
@@ -83,6 +83,16 @@ def best(items: list[dict], signal: dict) -> dict | None:
     if not found:
         return None
     return max(found, key=lambda x: x[:3])[3]
+
+
+def signal_text(match: dict) -> str:
+    words = {"step_id": "단계", "status": "HTTP 상태", "error_code": "오류 코드", "reason": "사유", "head": "로그"}
+    parts = [f"{words[k]} {', '.join(map(str, v))}" for k, v in match.items() if k in words and v]
+    if match.get("min_ms"):
+        parts.append(f"지연 {match['min_ms']}ms 이상")
+    if match.get("min_ratio"):
+        parts.append(f"실패 비율 {match['min_ratio']:.0%} 이상")
+    return ", ".join(parts)
 
 
 def body(item: dict) -> dict:

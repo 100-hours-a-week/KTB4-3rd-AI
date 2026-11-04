@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from app.Server_Monitor_Bot.config.settings import load
 from app.Server_Monitor_Bot.ops_agent.main_graph import Nodes, build_main
+from app.Server_Monitor_Bot.ops_agent.state import message
 from app.Server_Monitor_Bot.runtime.context import Ctx, new_event
 
 from .fakes import FakeChat
@@ -56,10 +57,10 @@ class FakeCoord:
         return self.tokens
 
 
-def nodes(stage="prod", owners=(1,), operators=(2,), seen=(), tokens=0):
-    settings = load({"APP_STAGE": stage})
-    settings.cfg["telegram"] = {**settings.cfg["telegram"], "owner_ids": list(owners), "drill_operator_ids": list(operators)}
-    ctx = Ctx(settings=settings, repos=SimpleNamespace(coord=FakeCoord(seen, tokens)))
+def nodes(stage="prod", admin=1, members=(2,), seen=(), tokens=0):
+    settings = load({"AI_DB_URL": f"mysql://u:p@h/ai_{stage}", "Admin_Telegram_ID": str(admin)})
+    ctx = Ctx(settings=settings, repos=SimpleNamespace(coord=FakeCoord(seen, tokens),
+                                                       members=SimpleNamespace(is_member=lambda uid: uid in members)))
     return Nodes(ctx, FakeChat())
 
 
@@ -71,10 +72,14 @@ def ingest(n, type_, **kw):
 def test_ingest_rules():
     n = nodes()
     assert ingest(n, "action.drill_start", source="telegram", from_id=2, chat_id=9)["drop_reason"] == "stage"
-    assert ingest(n, "user.message", source="telegram", from_id=2, chat_id=9)["drop_reason"] == "permission"
+    assert ingest(n, "user.message", source="telegram", from_id=2, chat_id=9)["role"] == "member"
     assert ingest(n, "user.message", source="telegram", from_id=3, chat_id=9)["drop_reason"] == "permission"
+    assert ingest(n, "action.member_join", source="telegram", from_id=3, chat_id=9)["drop"] is False
+    for admin_only in ("action.member_list", "action.member_approve", "action.member_reject", "action.drill_guess"):
+        assert ingest(n, admin_only, source="telegram", from_id=2, chat_id=9)["drop_reason"] in ("permission", "stage")
+    assert ingest(n, "action.member_list", source="telegram", from_id=1, chat_id=9)["drop"] is False
     ok = ingest(n, "user.message", source="telegram", from_id=1, chat_id=9)
-    assert ok["drop"] is False and ok["role"] == "owner" and ok["budget"].tokens == 30000
+    assert ok["drop"] is False and ok["role"] == "admin" and ok["budget"].tokens == n.ctx.settings.section("budget")["run_tokens"]
     assert ingest(nodes(seen={"x"}), "action.status", event_id="x")["drop_reason"] == "duplicate"
     assert ingest(n, "nope")["drop_reason"] == "unknown_type"
     dev = nodes(stage="dev")
@@ -86,7 +91,7 @@ def test_ingest_rules():
     detector = ingest(dev, "alert.pipeline", payload={"alert_key": "drill.receipt.luna_call.x", "drill": {"run_id": "R-1", "hide_knowledge": ["KN_A"]}})
     assert detector["drill_config"]["hide_knowledge"] == ["KN_A"] and detector["run_no"] == 0
     drill = ingest(dev, "alert.pipeline", payload={"drill": {"config": "single", "run_no": 1}})
-    assert drill["budget"].tokens == 6000 and drill["run_no"] == 1
+    assert drill["budget"].tokens == dev.ctx.settings.section("budget")["single_tokens"] and drill["run_no"] == 1
 
 
 def test_propose_attaches_to_report_or_alert():
@@ -101,4 +106,30 @@ def test_propose_attaches_to_report_or_alert():
     n.graphs["propose"] = SimpleNamespace(invoke=lambda s: {"proposal": prop2})
     out = n.propose({"event": {"type": "signal.policy", "payload": {"policy_key": "llm.max_concurrency", "message_id": 77,
                                                                      "message_text": "알림 본문", "signal": {}}}, "budget": None, "outbox": [], "node_path": []})["outbox"]
-    assert out[0]["edit_message_id"] == 77 and out[0]["edit_text"] == "알림 본문\n⚙️ 제안"
+    assert out[0]["edit_message_id"] == 77 and out[0]["edit_text"] == "알림 본문\n\n⚙️ 제안"
+
+
+def test_alert_proposal_edits_every_recipient():
+    n = nodes()
+    calls = []
+
+    class Tg:
+        first = 1
+
+        def edit(self, chat, mid, text, buttons=None, html=False):
+            calls.append(("edit", chat, mid, text))
+            return chat != 30
+
+        def send(self, chat, text, buttons=None, reply_to=None, html=False):
+            calls.append(("send", chat, reply_to, text))
+            return 900
+
+        def broadcast(self, text, buttons=None, html=False):
+            raise AssertionError("proposal must not be broadcast as a bare paragraph")
+
+    n.ctx.telegram = Tg()
+    m = message("⚙️ 제안", buttons=[[("승인", "aa:A-1")]], ref=("adjustment", "A-1"), edit_message_id=77, edit_text="알림 본문\n⚙️ 제안",
+                edits=[[1, 77], [20, 78], [30, 79]])
+    assert n.send(m) == [(1, 77), (20, 78), (30, 900)]
+    assert calls[:2] == [("edit", 1, 77, "알림 본문\n⚙️ 제안"), ("edit", 20, 78, "알림 본문\n⚙️ 제안")]
+    assert calls[-1] == ("send", 30, 79, "⚙️ 제안")

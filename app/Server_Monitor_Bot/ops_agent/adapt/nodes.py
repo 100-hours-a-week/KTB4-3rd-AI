@@ -4,25 +4,18 @@ import time
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from ...channels.telegram import render
 from ...runtime.context import new_event
 from ...store.repos.base import dt, epoch
-from ..common.env import Env, as_evidence, hm
+from ..common.env import Env, as_evidence
 from ..common.llm import BudgetExceeded
-from ..state import message
+from ..state import marks, message
 from ..tools import work
 from ..workers.write_verify import run_write
 from . import policy as pol
 from . import prompts
 
 V3_ONLY = ("route.force_luna", "modal.wait_s")
-WORDS = {"improved": "유지", "no_effect": "효과 없음", "worse": "악화 → 원래 값으로 되돌렸습니다"}
-ICON = {"improved": "✅", "no_effect": "➖", "worse": "⚠️"}
-
-
-def fmt(knob: str, value) -> str:
-    if value in (0, None, False) and knob == "llm.max_concurrency":
-        return "제한 없음"
-    return str(value)
 
 
 def device() -> str:
@@ -75,10 +68,11 @@ class Propose:
         adj_id = repos.adjust.propose(incident_id=r.get("incident_id"), knowledge_id=r.get("knowledge_id"), knob=knob,
                                       old_value=s["current"], new_value=s["value"], ttl_min=s["ttl"])
         repos.adjust.set_status(adj_id, "proposed", before_metrics={"target": {"feature": r.get("feature"), "step_id": r.get("step_id")}})
-        paragraph = f"⚙️ 조정 제안: {knob} {fmt(knob, s['current'])} → {s['value']} ({s['ttl']}분)\n근거: {s['reason']}"
+        paragraph = render.adjust_proposal(knob, s["current"], s["value"], s["ttl"], s["reason"])
         buttons = [[("승인", f"aa:{adj_id}"), ("거절", f"ar:{adj_id}")]]
         return {"proposal": {"adj_id": adj_id, "paragraph": paragraph, "buttons": buttons, "source": r.get("source"),
-                             "message_id": r.get("message_id"), "message_text": r.get("message_text")}, "outcome": "ok"}
+                             "message_id": r.get("message_id"), "messages": r.get("messages"), "message_text": r.get("message_text")},
+                "outcome": "ok"}
 
 
 class Apply:
@@ -88,8 +82,9 @@ class Apply:
     def apply(self, s: dict) -> dict:
         repos, adj_id = self.env.ctx.repos, s["payload"].get("adj_id")
         adj = repos.adjust.get(adj_id)
+        gone = {"outbox": [message(render.say("adjust_gone", adj_id=adj_id), chat_id=s.get("chat_id"))], "outcome": "ok"}
         if not adj or adj["status"] != "proposed":
-            return {"outbox": [message(f"이미 처리했거나 없는 조정입니다({adj_id})", chat_id=s.get("chat_id"))], "outcome": "ok"}
+            return gone
         target = (adj.get("before_metrics") or {}).get("target") or {}
         now = time.time()
         before = repos.metrics.compare(target.get("feature") or "receipt", target.get("step_id") or "luna_call", dt(now - 600), dt(now))
@@ -97,17 +92,18 @@ class Apply:
         expires = now + adj["ttl_min"] * 60
         for wait in (*self.retry_waits, None):
             try:
-                repos.adjust.apply(adj_id, adj["knob"], value, expires, {"target": target, **before})
+                if not repos.adjust.apply(adj_id, adj["knob"], value, expires, {"target": target, **before}):
+                    return gone
                 break
             except Exception:
                 if wait is None:
-                    return {"outbox": [message("적용하지 못했습니다. 잠시 뒤 [승인]을 다시 눌러 주세요", chat_id=s.get("chat_id"))],
+                    return {"outbox": [message(render.say("adjust_retry"), chat_id=s.get("chat_id"))],
                             "outcome": "error"}
                 time.sleep(wait)
         after_s = self.env.agent.get("observe_after_s", 600)
         return {"followups": [{"event": new_event("adapt.observe", {"adj_id": adj_id}, source="followup"), "not_before": now + after_s}],
-                "outbox": [message(f"적용됨: {adj['knob']} {fmt(adj['knob'], adj['old_value'])} → {adj['new_value']} "
-                                   f"({adj['ttl_min']}분, 만료 {hm(expires)}). {after_s // 60}분 뒤 효과를 보고합니다",
+                "outbox": [*marks(repos.coord, "adjustment", adj_id, render.decided("✅ 승인", s["payload"].get("name") or "-")),
+                           message(render.adjust_applied(adj["knob"], adj["old_value"], adj["new_value"], adj["ttl_min"], expires, after_s // 60),
                                    chat_id=s.get("chat_id"), ref=("adjustment", adj_id))], "outcome": "ok"}
 
     def observe(self, s: dict) -> dict:
@@ -124,6 +120,8 @@ class Apply:
     def conclude(self, s: dict) -> dict:
         v = pol.verdict(s["before"], s["after"])
         line = None
+        if v == "pending":
+            return {"verdict": v, "summary_line": None}
         try:
             msg = self.env.llm.invoke([SystemMessage(content=prompts.SUMMARY),
                                        HumanMessage(content=json.dumps({"판정": v, "전": s["before"], "후": s["after"]}, ensure_ascii=False, default=str))])
@@ -138,16 +136,10 @@ class Apply:
 
     def report(self, s: dict) -> dict:
         adj, b, a, v = s["adj"], s["before"], s["after"], s["verdict"]
-        status = {"improved": "kept", "no_effect": "applied", "worse": "rolled_back"}[v]
-        self.env.ctx.repos.adjust.set_status(adj["id"], status, verdict=v, after_metrics=a)
+        status = {"improved": "kept", "no_effect": "applied", "pending": "applied", "worse": "rolled_back"}[v]
+        self.env.ctx.repos.adjust.set_status(adj["id"], status, verdict=None if v == "pending" else v, after_metrics=a)
         target = b.get("target") or {}
-        def p95(x):
-            return f"{x / 1000:.0f}s" if x else "-"
-        text = (f"{ICON[v]} 조정 효과 ({hm()}): {target.get('feature')} {target.get('step_id')} 실패 {b.get('fails', 0)}/{b.get('calls', 0)} → "
-                f"{a['fails']}/{a['calls']}, p95 {p95(b.get('p95_ms'))} → {p95(a.get('p95_ms'))} → {WORDS[v]}")
-        if v == "improved":
-            text += f" ({hm(epoch(adj['applied_at']) + adj['ttl_min'] * 60)} 자동 원복)"
-        if s.get("summary_line"):
-            text += f"\n{s['summary_line']}"
-        buttons = [[("즉시 원복", f"ab:{adj['id']}")]] if v == "no_effect" else None
+        until = epoch(adj["applied_at"]) + adj["ttl_min"] * 60 if v == "improved" else None
+        text = render.adjust_verdict(v, adj["knob"], target, b, a, until, s.get("summary_line"))
+        buttons = [[("즉시 원복", f"ab:{adj['id']}")]] if v in ("no_effect", "pending") else None
         return {"outbox": [message(text, buttons=buttons, ref=("adjustment", adj["id"]))], "outcome": "ok"}

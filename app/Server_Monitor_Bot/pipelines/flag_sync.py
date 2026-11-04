@@ -8,6 +8,6 @@ def run(ctx, cache) -> list[dict]:
     expired = repos.adjust.expire_due()
     adjusted = [r for r in expired if r["adjustment_id"]]
     if adjusted and ctx.telegram:
-        ctx.telegram.send(None, render.expired(adjusted))
+        ctx.telegram.send(None, render.adjust_expired(adjusted))
     cache.replace({r["key"]: (r["value"], epoch(r["expires_at"])) for r in repos.adjust.flags()})
     return expired

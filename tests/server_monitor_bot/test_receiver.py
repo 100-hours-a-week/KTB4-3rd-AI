@@ -1,7 +1,8 @@
-# P7 수신: 텔레그램 업데이트 → 이벤트 매핑과 from.id 권한 확인.
+# P7 수신: 텔레그램 업데이트 → 이벤트 매핑과 from.id 권한 확인(관리자·팀원, 미등록은 /join만).
 from app.Server_Monitor_Bot.channels.telegram.receiver import to_event
 
-CFG = {"owner_ids": [1], "drill_operator_ids": [2]}
+ROLES = {1: "admin", 2: "member"}
+CFG = ROLES.get
 
 
 def msg(text, user=1, reply=None):
@@ -31,3 +32,15 @@ def test_permissions_and_callbacks():
     assert to_event(cb, CFG)["type"] == "adapt.approved"
     cb["callback_query"]["from"]["id"] = 3
     assert to_event(cb, CFG) is None
+    cb["callback_query"]["from"]["id"] = 1
+    cb["callback_query"]["data"] = "ma:555"
+    assert to_event(cb, CFG)["type"] == "action.member_approve" and to_event(cb, CFG)["payload"]["user_id"] == "555"
+
+
+def test_unregistered_can_only_join():
+    m = msg("/join", user=7)
+    m["message"]["from"].update(first_name="길동", last_name="홍", username="hong")
+    e = to_event(m, CFG)
+    assert e["type"] == "action.member_join" and e["payload"]["name"] == "길동 홍" and e["payload"]["username"] == "hong"
+    assert to_event(msg("/status", user=7), CFG) is None
+    assert to_event(msg("/request"), CFG)["type"] == "action.member_list"

@@ -6,15 +6,18 @@ from datetime import date
 
 from langgraph.graph import END, START, StateGraph
 
+from ..channels.telegram import render
 from . import events
 from .actions import Actions
 from .adapt.apply_graph import build_apply
 from .adapt.propose_graph import build_propose
 from .chat.graph import build_chat
+from .common.decide import Decider
 from .common.env import Env
 from .common.llm import Budget, make_chat
 from .diagnose.graph import build_diagnose
 from .knowledge.graph import build_knowledge
+from .roles import allowed, role_of
 from .state import MainState, message
 from .tools import registry
 from .workers.investigate import build_investigate
@@ -22,7 +25,7 @@ from .workers.write_verify import build_write_verify
 
 log = logging.getLogger("app.Server_Monitor_Bot.agent")
 CALLS = ("diagnose", "chat", "knowledge", "propose", "apply")
-EDIT_INTENTS = ("knowledge_add", "knowledge_update", "knowledge_delete")
+EDIT_INTENTS = ("knowledge_add", "knowledge_update", "knowledge_delete", "doc_update", "doc_delete")
 TELEGRAM_LIMIT = 4096
 _budget_notice: dict[str, date] = {}
 
@@ -61,7 +64,7 @@ def step(s: MainState, name: str, **update) -> dict:
 class Nodes:
     def __init__(self, ctx, llm):
         self.ctx = ctx
-        self.env = Env(ctx, llm, build_investigate(llm, registry.tools()), build_write_verify(llm))
+        self.env = Env(ctx, llm, build_investigate(llm, registry.tools()), build_write_verify(llm), getattr(ctx, "decider", None) or Decider(ctx.settings))
         self.graphs = {"diagnose": build_diagnose(self.env), "chat": build_chat(self.env), "knowledge": build_knowledge(self.env),
                        "propose": build_propose(self.env), "apply": build_apply(self.env)}
         self.actions = Actions(self.env)
@@ -79,18 +82,16 @@ class Nodes:
         if repos.coord.seen_event(e["id"]):
             return drop("duplicate")
         if t.startswith("action.drill") and t != "action.drill_guess" and not settings.drill_allowed:
-            return drop("stage", f"{settings.stage}에서는 훈련을 할 수 없습니다")
+            return drop("stage", render.say("stage_blocked", stage=settings.stage))
         if t == "action.drill_guess" and not settings.drill_allowed:
-            return drop("stage", f"{settings.stage}에서는 훈련을 할 수 없습니다")
+            return drop("stage", render.say("stage_blocked", stage=settings.stage))
         if not settings.feature(events.FEATURE.get(t, "F9")):
-            return drop("disabled", f"이 기능은 {settings.stage}에서 꺼져 있습니다")
-        tg = settings.section("telegram")
+            return drop("disabled", render.say("disabled", stage=settings.stage))
         role = None
         if e.get("source") == "telegram":
-            uid = e.get("from_id")
-            role = "owner" if uid in (tg.get("owner_ids") or []) else "drill_operator" if uid in (tg.get("drill_operator_ids") or []) else None
-            if role is None or (role == "drill_operator" and t not in events.DRILL_OPERATOR_OK):
-                return drop("permission", "권한이 없습니다")
+            role = role_of(e.get("from_id"), settings, repos.members, e.get("chat_id"))
+            if not allowed(role, t):
+                return drop("permission", render.say("denied"))
         drill = payload.get("drill") if isinstance(payload.get("drill"), dict) else None
         b = settings.section("budget")
         is_drill = is_drill_event(payload)
@@ -101,8 +102,8 @@ class Nodes:
                 text = None
                 if _budget_notice.get(key) != today:
                     _budget_notice[key] = today
-                    text = (f"오늘 모니터 토큰 상한에 도달했습니다. 감지 결과만 보냅니다: {payload.get('alert_key', t)} "
-                            f"{(payload.get('signal') or {}).get('count', '-')}/{(payload.get('signal') or {}).get('calls', '-')}")
+                    sig = payload.get("signal") or {}
+                    text = render.budget_reached(payload.get("alert_key", t), sig.get("fails", "-"), sig.get("total", "-"))
                 return drop("budget", text)
         tokens = {"single": b.get("single_tokens", 6000), "rag": b.get("rag_tokens", 8000)}.get((drill or {}).get("config"), b.get("run_tokens", 30000))
         budget = Budget(tokens, b.get("run_ms", 120000), b.get("reserve_tokens", 5000), b.get("reserve_ms", 25000))
@@ -148,14 +149,21 @@ class Nodes:
                                                     "step_id": r.get("step_id"), "source": "diagnosis", "summary": r.get("summary")})
         if target == "knowledge":
             return step(s, "chain", edit_request={"intent": a["intent"], "edit_request": a.get("edit_request"),
-                                                  "target_knowledge_id": a.get("target_knowledge_id"), "incident_id": a.get("incident_id"),
-                                                  "chat_id": a.get("chat_id")})
+                                                  "target_knowledge_id": a.get("target_knowledge_id"), "target_doc": a.get("target_doc"),
+                                                  "incident_id": a.get("incident_id"), "chat_id": a.get("chat_id")})
         return step(s, "chain")
 
     def knowledge(self, s: MainState) -> dict:
         edit = s.get("edit_request") or {**(s["event"].get("payload") or {}), "chat_id": s["event"].get("chat_id")}
+        if str(edit.get("intent", "")).startswith("doc_") and not self.ctx.settings.is_admin(s["event"].get("from_id")):
+            return step(s, "knowledge", outbox=s.get("outbox", []) + [message(render.say("denied"), chat_id=edit.get("chat_id"))])
         out = self.graphs["knowledge"].invoke({"edit": edit, "budget": s["budget"]})
-        return step(s, "knowledge", outbox=s.get("outbox", []) + out.get("outbox", []),
+        outbox = s.get("outbox", [])
+        if out.get("stop") and outbox and outbox[-1].get("chat_row"):
+            outbox = outbox[:-1] + [{**outbox[-1], "text": out["stop"], "html": False}]
+        else:
+            outbox = outbox + out.get("outbox", [])
+        return step(s, "knowledge", outbox=outbox,
                     sub_result={**s.get("sub_result", {}), "route": s.get("sub_result", {}).get("route", "S3"), "knowledge": out.get("outcome", "ok")})
 
     def propose(self, s: MainState) -> dict:
@@ -172,12 +180,13 @@ class Nodes:
             ref = ("adjustment", prop["adj_id"])
             idx = next((i for i in range(len(outbox) - 1, -1, -1) if (outbox[i].get("ref") or ("",))[0] == "incident"), None)
             if prop["source"] == "diagnosis" and idx is not None:
-                outbox[idx] = {**outbox[idx], "text": outbox[idx]["text"] + "\n" + prop["paragraph"], "buttons": prop["buttons"]}
+                outbox[idx] = {**outbox[idx], "text": render.attach(outbox[idx]["text"], prop["paragraph"], outbox[idx].get("html", False)),
+                               "buttons": prop["buttons"], "also": ref}
             elif prop["source"] == "alert" and prop.get("message_id"):
                 outbox.append(message(prop["paragraph"], buttons=prop["buttons"], ref=ref, edit_message_id=prop["message_id"],
-                                      edit_text=f"{prop.get('message_text') or ''}\n{prop['paragraph']}".strip()))
+                                      edit_text=render.attach(prop.get("message_text") or "", prop["paragraph"]).strip(), edits=prop.get("messages")))
             else:
-                outbox.append(message(f"정책 신호: {req.get('summary') or req.get('policy_key')}\n{prop['paragraph']}", buttons=prop["buttons"], ref=ref))
+                outbox.append(message(render.policy_signal(req.get("summary") or req.get("policy_key"), prop["paragraph"]), buttons=prop["buttons"], ref=ref))
         return step(s, "propose", outbox=outbox, sub_result={**s.get("sub_result", {}), "route": s.get("sub_result", {}).get("route", "S4a")})
 
     def apply(self, s: MainState) -> dict:
@@ -191,34 +200,52 @@ class Nodes:
         return step(s, "action", outbox=s.get("outbox", []) + out.get("outbox", []), followups=s.get("followups", []) + out.get("followups", []),
                     sub_result={"route": "action", "outcome": "ok"})
 
-    def send(self, m: dict) -> int | None:
+    def send(self, m: dict, ack: list | None = None) -> list[tuple[int, int]]:
         tg = self.ctx.telegram
         if tg is None:
-            return None
+            return []
+        chat = m.get("chat_id")
+        if ack and not m.get("edit_message_id") and chat == ack[0][0]:
+            c, mid = ack.pop()
+            if len(m["text"]) <= TELEGRAM_LIMIT and tg.edit(c, mid, m["text"], m.get("buttons"), html=m.get("html", False)):
+                return [(c, mid)]
+        if m.get("mark"):
+            mid = m["edit_message_id"]
+            ok = tg.edit(chat, mid, m["edit_text"], m.get("buttons")) if m.get("edit_text") else tg.edit_markup(chat, mid, m.get("buttons"))
+            return [(chat, mid)] if ok else []
         if m.get("edit_message_id") and m.get("edit_text") is not None:
-            text = m["edit_text"]
-            if len(text) <= TELEGRAM_LIMIT and tg.edit(m.get("chat_id"), m["edit_message_id"], text, m.get("buttons")):
-                return m["edit_message_id"]
-            return tg.send(m.get("chat_id"), m["text"], m.get("buttons"), reply_to=m["edit_message_id"])
-        return tg.send(m.get("chat_id"), m["text"], m.get("buttons"), reply_to=m.get("reply_to"))
+            targets = [(chat, m["edit_message_id"])] if chat is not None else [tuple(t) for t in m.get("edits") or []]
+            out = []
+            for c, mid in targets or [(tg.first, m["edit_message_id"])]:
+                if len(m["edit_text"]) <= TELEGRAM_LIMIT and tg.edit(c, mid, m["edit_text"], m.get("buttons"), html=m.get("html", False)):
+                    out.append((c, mid))
+                elif new := tg.send(c, m["text"], m.get("buttons"), reply_to=mid, html=m.get("html", False)):
+                    out.append((c, new))
+            return out
+        if chat is None:
+            return tg.broadcast(m["text"], m.get("buttons"), m.get("html", False))
+        mid = tg.send(chat, m["text"], m.get("buttons"), reply_to=m.get("reply_to"), html=m.get("html", False))
+        return [(chat, mid)] if mid else []
 
     def publish(self, s: MainState) -> dict:
         repos, e = self.ctx.repos, s["event"]
-        default_chat = self.ctx.settings.section("telegram").get("chat_id") or None
+        ack = [tuple(e["ack"])] if e.get("ack") else []
         for m in s.get("outbox", []):
             try:
-                mid = self.send(m)
+                sent = self.send(m, ack)
             except Exception as exc:
                 log.warning("publish failed: error=%s", type(exc).__name__)
-                mid = None
-            if mid is None:
-                self.ctx.stats["send_fail"] = self.ctx.stats.get("send_fail", 0) + 1
+                sent = []
+            if not sent:
+                if not m.get("mark"):
+                    self.ctx.stats["send_fail"] = self.ctx.stats.get("send_fail", 0) + 1
                 continue
-            chat = m.get("chat_id") or default_chat
-            if m.get("ref") and chat:
-                repos.coord.link_message(mid, chat, m["ref"][0], m["ref"][1])
+            for chat, mid in sent:
+                for ref in (m.get("ref"), m.get("also")):
+                    if ref:
+                        repos.coord.link_message(mid, chat, ref[0], ref[1])
             if m.get("chat_row"):
-                repos.chat.fill_bot_message(m["chat_row"], mid)
+                repos.chat.fill_bot_message(m["chat_row"], sent[0][1])
         for f in s.get("followups", []):
             ev = f["event"]
             ev.setdefault("chain_depth", 0)

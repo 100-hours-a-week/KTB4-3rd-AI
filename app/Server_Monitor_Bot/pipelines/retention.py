@@ -1,6 +1,8 @@
-# P6 보존 정리(리더, 매일): 기간 지난 행 삭제(LIMIT 5000 반복), 대화 벡터 정리, 정리본 만료, 색인 보정.
+# P6 보존 정리(리더, 매일): 기간 지난 행 삭제(LIMIT 5000 반복), 대화 벡터 정리·보정, 정리본 만료, 지식·문서 동기화 재확인.
 import logging
 import time
+
+from . import knowledge_seed
 
 log = logging.getLogger("app.Server_Monitor_Bot.retention")
 
@@ -23,28 +25,39 @@ def purge(ctx) -> dict:
     return out
 
 
+def rebuild(vec, collection: str, repo) -> bool:
+    try:
+        if vec.count(collection) > 0:
+            return False
+    except Exception as exc:
+        log.warning("vector count failed: collection=%s error=%s", collection, type(exc).__name__)
+        return False
+    return repo.mark_all_pending() > 0
+
+
 def reindex(ctx) -> dict:
-    k, chat, out = ctx.repos.knowledge, ctx.repos.chat, {"knowledge": 0, "chat": 0, "version": 0}
-    if k.vec is None:
+    chat, out = ctx.repos.chat, {"chat": 0}
+    if chat.vec is None:
         return out
     try:
-        k.vec.delete_older("chat", "ts", int(time.time()) - ctx.settings.section("retention").get("chat_days", 365) * 86400)
+        chat.vec.delete_older("chat", "ts", int(time.time()) - ctx.settings.section("retention").get("chat_days", 365) * 86400)
     except Exception as exc:
         log.warning("chat vector purge failed: error=%s", type(exc).__name__)
-    for item in k.pending():
-        out["knowledge"] += k.index(item)
-    for row in chat.pending():
-        if chat.index(row["chat_id"], row["message_id"], row["question"], row["answer"] or "", row["incident_id"], row["intent"]):
-            chat.mark_indexed(row["chat_id"], row["message_id"])
-            out["chat"] += 1
+    out["rebuilt"] = ["chat"] if rebuild(chat.vec, "chat", chat) else []
+    while rows := chat.pending():
+        done = 0
+        for row in rows:
+            if chat.index(row["chat_id"], row["message_id"], row["question"], row["answer"] or "", row["incident_id"], row["intent"],
+                          row["ts"]):
+                chat.mark_indexed(row["chat_id"], row["message_id"])
+                done += 1
+        out["chat"] += done
+        if done < len(rows):
+            break
     try:
-        active = k.active()
-        payloads = k.vec.payloads("knowledge", [f"knowledge:{a['id']}" for a in active])
-        for a in active:
-            if payloads.get(f"knowledge:{a['id']}", {}).get("version") != a["version"]:
-                out["version"] += k.index(a)
+        out["sync"] = knowledge_seed.sync(ctx)
     except Exception as exc:
-        log.warning("version check failed: error=%s", type(exc).__name__)
+        log.warning("knowledge sync failed: error=%s", type(exc).__name__)
     return out
 
 

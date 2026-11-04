@@ -23,7 +23,7 @@ def main() -> None:
     registry.bind(build_ctx())
     server = FastMCP("server-monitor-bot")
     for fn in (work.step_failures, work.llm_calls, work.dependency, work.resources, work.recent_deploy, work.knowledge_search,
-               work.chat_search, work.flags, raw.trace, raw.logs, raw.code_search, raw.code_read):
+               work.chat_search, work.docs_search, work.flags, raw.trace, raw.logs, raw.code_search, raw.code_read):
         server.tool()(fn)
     server.run()
 

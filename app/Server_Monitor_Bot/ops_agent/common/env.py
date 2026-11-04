@@ -1,6 +1,5 @@
-# 서브에이전트 공용 실행 환경: 컨텍스트, 모델, W1·W2 그래프, 판정자, 근거 변환.
+# 서브에이전트 공용 실행 환경: 컨텍스트, 모델, W1·W2 그래프, 판단 모델, 판정자(판단 모델 우선, 실패면 LLM), 근거 변환.
 import json
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +15,7 @@ class Env:
     llm: Any
     w1: Any
     w2: Any
+    decider: Any = None
 
     @property
     def agent(self) -> dict:
@@ -25,11 +25,14 @@ class Env:
     def policy_keys(self) -> tuple:
         return tuple(self.ctx.settings.policy)
 
-    def owner(self) -> int | None:
-        ids = self.ctx.settings.section("telegram").get("owner_ids") or []
-        return ids[0] if ids else None
+    def owners(self) -> tuple[int, ...]:
+        return self.ctx.settings.admin_ids
 
     def judge(self, prompt: str, expected: str, predicted: str, budget=None) -> tuple[bool | None, str]:
+        if self.decider is not None:
+            hit, reason = self.decider.same_cause(expected, predicted)
+            if hit is not None:
+                return hit, reason
         try:
             out = invoke_with_budget(self.llm.with_structured_output(JudgeResult, include_raw=True),
                                      [SystemMessage(content=prompt),
@@ -48,4 +51,6 @@ def as_evidence(result: dict, tool: str, args: dict | None = None) -> dict | Non
 
 
 def hm(ts: float | None = None) -> str:
-    return time.strftime("%H:%M", time.localtime(ts or time.time()))
+    from ...channels.telegram.render import kst
+
+    return kst(ts)

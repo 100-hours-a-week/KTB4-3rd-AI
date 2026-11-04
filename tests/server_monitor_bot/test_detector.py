@@ -55,8 +55,8 @@ class Fake:
             incidents=SimpleNamespace(recent_for_key=lambda key, s: None),
             coord=SimpleNamespace(held=lambda key: 0, claim_alert=lambda *a: self.claim,
                                   link_message=lambda *a: self.links.append(a)),
-            metrics=SimpleNamespace(samples=lambda *a: ["rid1"]))
-        self.telegram = SimpleNamespace(send=lambda chat, text, **k: self.sent.append(text) or 77, default_chat=5, text=lambda t: t)
+            metrics=SimpleNamespace(samples=lambda *a, **k: ["rid1"]))
+        self.telegram = SimpleNamespace(broadcast=lambda text, buttons=None: self.sent.append(text) or [(5, 77), (6, 78)], text=lambda t: t)
         self.settings, self.task_id = load(), "task-1"
 
     def enqueue(self, event, not_before=None):
@@ -67,8 +67,16 @@ def test_handle_immediate_with_policy():
     ctx = Fake()
     action = d.Detector(ctx).handle(item("luna_call", 1, total=30, reason="http_4xx", status=429, error_code="rate_limit_exceeded"), {})
     assert action == "immediate" and "KN_OPENAI_RATE_LIMIT" in ctx.sent[0]
-    assert ctx.links[0][2] == "alert" and ctx.events[0]["type"] == "signal.policy"
+    assert [(l[0], l[1], l[2]) for l in ctx.links] == [(77, 5, "alert"), (78, 6, "alert")] and ctx.events[0]["type"] == "signal.policy"
+    assert ctx.events[0]["payload"]["messages"] == [[5, 77], [6, 78]]
     assert ctx.events[0]["payload"]["message_id"] == 77 and ctx.events[0]["payload"]["policy_key"] == "llm.max_concurrency"
+
+
+def test_alert_still_sent_when_sample_lookup_fails():
+    ctx = Fake()
+    ctx.repos.metrics = SimpleNamespace(samples=lambda *a, **k: 1 / 0)
+    action = d.Detector(ctx).handle(item("luna_call", 1, total=30, reason="http_4xx", status=429, error_code="rate_limit_exceeded"), {})
+    assert action == "immediate" and len(ctx.sent) == 1 and "샘플:" not in ctx.sent[0]
 
 
 def test_handle_diagnose_and_claim_lost():
