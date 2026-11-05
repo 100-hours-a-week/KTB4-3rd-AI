@@ -23,6 +23,7 @@ local = [
     "transformers>=5.16",
 ]
 # Modal T4를 부르거나 배포할 때(MODAL_TOKEN_ID_1, MODAL_TOKEN_SECRET_1). GPU 쪽 패키지는 llm/modal_app.py 이미지에 있다.
+# 혼잡도 SemIf 폴백도 같은 extra(MODAL_TOKEN_ID_2, MODAL_TOKEN_SECRET_2). GPU 쪽 패키지는 features/congestion/modal_app.py 이미지에 있다.
 modal = [
     "modal>=1.0",
 ]

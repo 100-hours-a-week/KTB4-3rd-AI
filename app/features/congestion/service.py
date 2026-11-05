@@ -24,6 +24,7 @@ from .models import (
     CongestionResultWithSummary,
 )
 from .preprocessor import prepare_spot
+from .semif import SemifRelevanceScorer
 from .relevance import (
     RelevanceOutputInvalid,
     RelevancePolicy,
@@ -62,12 +63,15 @@ class LLMCongestionAnalyzer:
         score: RelevanceScorer | None = None,
         policy: RelevancePolicy | None = None,
         complete: Callable[[str], Awaitable[str]] = call_api_model,
+        semif: RelevanceScorer | None = None,
     ) -> None:
         if (score is None) != (policy is None):
             raise ValueError("score and policy must be provided together")
         self._score = score
         self._policy = policy
         self._complete = complete
+        # 선별 폴백 순서: Decisions → SemIf(D33) → 키워드. SemIf는 토큰이 없으면 바로 건너뛴다.
+        self._semif = semif if semif is not None else _SEMIF
 
     async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
         prepared = prepare_spot(message, message.window_end)
@@ -83,26 +87,23 @@ class LLMCongestionAnalyzer:
                 score, policy = self._configured_scorer()
                 classified = await classify_spot(prepared, score, policy)
             except (UpstreamError, ModelNotReady, RelevanceOutputInvalid) as exc:
-                cause = exc.__cause__
-                reason = (
-                    exc.reason
-                    if isinstance(exc, RelevanceOutputInvalid)
-                    else (
-                        "missing_key"
-                        if isinstance(exc, ModelNotReady)
-                        else http_reason(cause)
-                        if isinstance(cause, httpx.HTTPError)
-                        else "not_json"
-                    )
-                )
-                classified = classify_by_keywords(prepared, RELEVANCE_KEYWORDS)
+                reason = _failure_reason(exc)
+                try:
+                    classified = await classify_spot(prepared, self._semif, RELEVANCE_POLICY)
+                    method, semif_reason = "semif", "ok"
+                except (UpstreamError, ModelNotReady, RelevanceOutputInvalid) as semif_exc:
+                    classified = classify_by_keywords(prepared, RELEVANCE_KEYWORDS)
+                    method, semif_reason = "keyword", _failure_reason(semif_exc)
                 logger.warning(
-                    "congestion relevance fallback: reason=%s method=keyword "
-                    "candidates=%s related=%s unrelated=%s",
+                    "congestion relevance fallback: reason=%s semif=%s method=%s "
+                    "candidates=%s related=%s unrelated=%s ms=%s",
                     reason,
+                    semif_reason,
+                    method,
                     len(prepared.candidates),
                     sum(d.status == "RELATED" for d in classified.decisions),
                     sum(d.status == "UNRELATED" for d in classified.decisions),
+                    int((monotonic() - started) * 1000),
                 )
             else:
                 logger.info(
@@ -146,6 +147,23 @@ class LLMCongestionAnalyzer:
         if self._score is not None and self._policy is not None:
             return self._score, self._policy
         return DecisionsRelevanceScorer(), RELEVANCE_POLICY
+
+
+_SEMIF = SemifRelevanceScorer()  # 프로세스에 하나. Modal 조회는 처음 폴백할 때 한 번만 한다.
+
+
+def _failure_reason(exc: Exception) -> str:
+    """선별 실패를 로그용 짧은 이유로 바꾼다. 글 내용·키는 담지 않는다."""
+    if isinstance(exc, RelevanceOutputInvalid):
+        return exc.reason
+    if isinstance(exc, ModelNotReady):
+        return "missing_key"
+    cause = exc.__cause__
+    if isinstance(cause, httpx.HTTPError):
+        return http_reason(cause)
+    if cause is not None and "Timeout" in type(cause).__name__:
+        return "timeout"
+    return "not_json" if cause is None or isinstance(cause, ValueError) else "remote_error"
 
 
 def get_analyzer() -> CongestionAnalyzer:

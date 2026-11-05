@@ -111,13 +111,14 @@ result = asyncio.run(analyze_message(message, analyzer))
 | 실패 위치 | 코드 / HTTP 상태 | 뜻 | consumer 재시도 권고 |
 | --- | --- | --- | --- |
 | 요청 검증 | `REQUEST_INVALID` / 422 | consumer에서는 `ValidationError`. 결과 없이 원본을 DLT로 보냄 | 안 함. 요청 수정 필요 |
-| 관련성 선별 | 없음 | Decisions 호출·키 준비·응답 검증 실패 시 키워드 폴백으로 계속 분석 | 안 함 |
+| 관련성 선별 | 없음 | Decisions 호출·키 준비·응답 검증 실패 시 SemIf 폴백, 그것도 실패하면 키워드 폴백으로 계속 분석 | 안 함 |
 | LLM 판정 호출 | `UPSTREAM_FAILED` / 502 | 외부 호출 또는 응답 형식 실패 | 일시적 호출 실패일 때만 검토. 인증·응답 형식 오류는 제외 |
 | 판정 모델 준비 | `MODEL_NOT_READY` / 503 | 판정에 쓸 두 모델의 키가 모두 없거나 비어 있음 | 키 주입 문제를 해결한 뒤, 다음 구간 전에 끝날 때만 검토 |
 | 판정 출력 검증 | `CONGESTION_PARSE_FAILED` / 502 | JSON·값 형식 오류 또는 대상 ID 불일치 | 안 함 |
 | 예상 밖 예외 | `INTERNAL` / 500 | HTTP에서 변환되는 코드. consumer에는 원래 예외가 전달됨. 위 예시처럼 실패 결과로 처리 | 안 함. 로그의 스택 트레이스로 원인 확인 |
 
-관련성 선별 폴백은 `congestion relevance fallback` 경고 로그로 확인한다.
+관련성 선별 폴백은 `congestion relevance fallback` 경고 로그로 확인한다(`semif=` SemIf 결과, `method=` 실제로 쓴 방식).
+순서는 Decisions → SemIf → 키워드다(아래 "SemIf 선별 폴백").
 키워드 폴백은 [config.py](config.py)의 `RELEVANCE_KEYWORDS`를 쓴다. 공백을 제거한
 원글 제목+본문 또는 댓글 자체 본문에 키워드가 있으면 판정 대상으로 남긴다.
 전부 무관하면 `UNKNOWN` 성공 결과를 만든다.
@@ -136,7 +137,7 @@ result = asyncio.run(analyze_message(message, analyzer))
 
 ## 재시도와 처리 시간
 
-외부 모델 호출은 [model_client.py](model_client.py)에서만 한다.
+외부 모델 호출은 [model_client.py](model_client.py)에서만 한다. 예외: SemIf 폴백은 Modal SDK로 [semif.py](semif.py)에서 부르며 재시도하지 않는다.
 429·5xx 응답이면 기본 1초 뒤 한 번 더 보낸다. 429의 `Retry-After`가 유효한 초 값이면
 그만큼 기다리며, 정책의 `timeout`보다 길면 기다리지 않고 해당 모델 호출을 실패로 처리한다.
 시간 초과·연결 실패·그 밖의 4xx·응답 형식 오류는 같은 모델에 재시도하지 않는다.
@@ -159,7 +160,8 @@ consumer 재시도는 Spring BE가 결정하되,
 
 | 설정 | timeout | retries | concurrency | 재시도 제외 호출 수 |
 | --- | --- | --- | --- | --- |
-| `DECISIONS_POLICY` | 30초 | 1 | 10 | 스팟 전체 후보를 400개씩 나눠 동시 호출, 최대 3회 |
+| `DECISIONS_POLICY` | 5초 | 1 | 10 | 스팟 전체 후보를 400개씩 나눠 동시 호출, 최대 3회. 실측 95% 3.4초·최대 3.9초(2026-11-05) |
+| `SEMIF_WAIT` | 10초 | 0 | Modal 1대 | Decisions 실패 때만. 넘기면 키워드로, 원격 호출은 계속 돌아 컨테이너를 데움 |
 | `JUDGE_POLICY` | 60초 | 1 | 5 | 선별 후 대상이 있으면 1회, 폴백 시 다음 모델에 1회 추가 |
 
 9단계부터 원글 묶음마다 최대 50번 부르던 Decisions를 스팟 전체 입력으로 묶는다.
@@ -202,7 +204,34 @@ HTTP 요청 밖에서 `request_id`가 비어 있으면 `analyze_message`가 요�
 [router.py](router.py)의 `POST /congestion-analyses`는 시험용으로 남아 있다.
 성공은 결과 메시지, 실패는 단계별 HTTP 오류이며 `200 + FAILED`로 반환하지 않는다.
 
+## SemIf 선별 폴백 (18단계, D33)
+
+OpenAI Decisions가 실패하면 Modal A10에 올린 SemIf(Qwen3.5-4B + 17단계 LoRA r2)로 선별한다.
+평가에서 키워드 폴백보다 놓침·남김이 적었다(F: 결과를 바꾸는 누락 4 → 0, 남긴 무관 28 → 7).
+이미지 기능(`app/llm/modal_app.py`)과 같은 방식이다.
+
+| 파일 | 하는 일 |
+| --- | --- |
+| [modal_app.py](modal_app.py) | Modal 배포 파일. 서버에서 import하지 않는다 |
+| [semif.py](semif.py) | SemIf 입력(학습·평가와 같은 형식) 만들기와 원격 호출 |
+
+- 켜기: `MODAL_TOKEN_ID_2`·`MODAL_TOKEN_SECRET_2`(혼잡도 Modal 계정)를 넣고 `.[modal]`로 설치한다. 없으면 SemIf를 건너뛰고 키워드로 간다(v2 기본).
+- 배포(`modal_app.py`가 바뀔 때마다):
+  `MODAL_TOKEN_ID=$MODAL_TOKEN_ID_2 MODAL_TOKEN_SECRET=$MODAL_TOKEN_SECRET_2 modal deploy -m app.features.congestion.modal_app`
+- 가중치는 그 계정의 볼륨 `semif-train`에 있다(기반 모델 캐시 `/hf`, LoRA `/runs/r2/epoch-2`). 지우지 않는다.
+- 평소에는 꺼져 있다. 꺼진 상태의 첫 요청은 `SEMIF_WAIT`를 넘겨 키워드로 처리되고, 그동안 컨테이너가 켜진다.
+  마지막 요청 뒤 10분이 지나면 다시 꺼진다(`scaledown_window=600`). 과금은 켜져 있는 시간만큼이다.
+- OpenAI 복구 확인 로직은 없다. 스팟마다 Decisions를 먼저 부르므로, 돌아오면 다음 스팟부터 Decisions를 쓴다.
+- Modal 조회가 한 번 실패하면(토큰·배포 문제) 재시작 전까지 SemIf를 쓰지 않는다(`congestion semif lookup failed` 오류 로그).
+- 로그: `congestion semif call done/failed`(후보 수, ms, 실패 이유). 글 내용은 남기지 않는다.
+
 ## Spring BE가 알아야 할 변경
+
+### 2026-11-05
+
+- Decisions 제한 시간을 30초에서 5초로 줄였다(재시도 1번은 그대로). 선별 단계의 최악 시간이 짧아진다.
+- Decisions가 실패하면 SemIf(GPU) 폴백을 먼저 쓰고, 그것도 실패하면 키워드 폴백을 쓴다. 응답 형식은 그대로다.
+- 요약 문장: "출퇴근·등하교하는 사람이 많아요.", "고장·점검 등 운행 장애로 혼잡해요."(원인 코드 이름은 그대로).
 
 ### 2026-11-03
 

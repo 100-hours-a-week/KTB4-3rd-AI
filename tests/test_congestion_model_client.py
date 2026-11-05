@@ -77,7 +77,7 @@ async def test_decide_retries_429_once(
         nonlocal calls
         calls += 1
         assert str(request.url) == "https://api.openai.com/v1/decisions"
-        assert request.extensions["timeout"]["read"] == 30.0
+        assert request.extensions["timeout"]["read"] == 5.0
         assert json.loads(request.content) == {"model": "gpt-6-luna", "questions": []}
         if calls == 1:
             return httpx.Response(
@@ -262,7 +262,7 @@ async def test_api_semaphore_limits_calls_and_releases_after_cancellation(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("api, timeout", [("responses", 60.0), ("decisions", 30.0)])
+@pytest.mark.parametrize("api, timeout", [("responses", 60.0), ("decisions", 5.0)])
 @pytest.mark.parametrize("header", ["2.5", "0", "equal", "long", "invalid", "-1", "nan", "inf"])
 async def test_retry_after_seconds_obey_policy_timeout(
     monkeypatch: pytest.MonkeyPatch, api: str, timeout: float, header: str,

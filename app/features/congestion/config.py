@@ -40,7 +40,10 @@ DECISIONS_ENDPOINT = ModelEndpoint(
 )
 # 임시값이며 실측 뒤 조정한다. 이미지 기능의 제한 시간과 무관하다.
 JUDGE_POLICY = CallPolicy(timeout=60.0, retries=1, concurrency=5)
-DECISIONS_POLICY = CallPolicy(timeout=30.0, retries=1, concurrency=10)
+# Decisions: 실측 95% 3.4초·최대 3.9초(평가 94호출, 2026-11-05). 재시도 1번은 남긴다(한 번 느리다고 꺼진 SemIf로 바로 넘어가지 않게).
+DECISIONS_POLICY = CallPolicy(timeout=5.0, retries=1, concurrency=10)
+# SemIf 폴백(semif.py): 원격 결과를 기다리는 상한(초). 켜진 상태 스팟당 0.6~1.6초. 넘기면 키워드로, 원격 호출은 계속 돌아 컨테이너를 데운다. 측정 뒤 조정.
+SEMIF_WAIT = 10.0
 
 DECISIONS_MAX_QUESTIONS = 400
 
