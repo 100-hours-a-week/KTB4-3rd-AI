@@ -12,6 +12,7 @@ dependencies = [
     "qdrant-client>=1.19",
     # Cloud Prometheus가 수집하는 /metrics(요청량, 에러율, 지연).
     "prometheus-fastapi-instrumentator>=8.1",
+    "aiokafka>=0.12",
 ]
 
 [project.optional-dependencies]
