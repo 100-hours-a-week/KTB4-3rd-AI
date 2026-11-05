@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Response
 
 from ..features.congestion.router import router as congestion
 from ..features.receipt.router import router as receipt
@@ -8,8 +8,12 @@ router = APIRouter()
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
+def health(request: Request, response: Response) -> dict[str, str]:
     # CI 스모크 테스트와 ECS 헬스체크용. 키나 모델 상태와 무관하게 프로세스가 떠 있으면 200이다.
+    workers = getattr(request.app.state, "kafka_workers", [])
+    if any(not worker.alive for worker in workers):
+        response.status_code = 503
+        return {"status": "kafka_worker_down"}
     return {"status": "ok"}
 
 

@@ -9,6 +9,7 @@ from .api.router import router
 from .core.config import DEVICE
 from .core.exceptions import HINTS, AppError, InternalError, RequestInvalid
 from .core.logging import get_logger, request_context
+from .kafka.config import kafka_settings
 from .llm import load
 
 logger = get_logger(__name__)
@@ -23,7 +24,18 @@ async def lifespan(app: FastAPI):
                 load(name, DEVICE)
             except AppError:
                 pass
+                
+    app.state.kafka_workers = []
+    settings = kafka_settings()
+    if settings is not None:
+        from .features.congestion.kafka_consumer import create_worker
+
+        app.state.kafka_workers.append(create_worker(settings))
+    for worker in app.state.kafka_workers:
+        worker.start()
     yield
+    for worker in app.state.kafka_workers:
+        await worker.stop()
 
 
 app = FastAPI(lifespan=lifespan)
