@@ -77,7 +77,7 @@ def every(stop: threading.Event, interval: float, fn, name: str, when=lambda: Tr
 
 
 def connect(settings, stop: threading.Event, telegram: TelegramClient):
-    from ..store.mysql import MySQLDB
+    from ..store.mysql import MySQLDB, failure_reason
 
     if not settings.db_url:
         log.warning("analysis disabled: reason=AI_DB_URL missing")
@@ -86,10 +86,10 @@ def connect(settings, stop: threading.Event, telegram: TelegramClient):
     while not stop.is_set():
         try:
             db = MySQLDB.from_url(settings.db_url, max_connections=2)
-            if db.ping():
-                return db
+            db.fetch_one("SELECT 1 AS ok")
+            return db
         except Exception as exc:
-            log.warning("db connect failed: error=%s", type(exc).__name__)
+            log.warning("db connect failed: error=%s reason=%s", type(exc).__name__, failure_reason(exc))
         if not alerted and time.time() - started >= 300:
             telegram.send(None, render.store_down(5))
             alerted = True
@@ -153,17 +153,29 @@ def daily(ctx, state: dict) -> None:
             log.warning("daily %s failed: error=%s", name, type(exc).__name__)
 
 
-def main() -> None:
+def schema_version(repos) -> int:
+    try:
+        return repos.coord.schema_version()
+    except Exception:
+        return 0
+
+
+def begin_when_ready(repos, analysis: threading.Event, begin) -> None:
+    if not analysis.is_set() and schema_version(repos) == SCHEMA_VERSION:
+        begin()
+
+
+def main(restarts: int = 0) -> None:
     log.propagate = False
     if not log.handlers:
         log.addHandler(logging.NullHandler())
     try:
-        run()
+        run(restarts)
     except Exception:
         log.exception("analysis crashed")
 
 
-def run() -> None:
+def run(restarts: int = 0) -> None:
     settings = load()
     settings.buffer_dir.mkdir(parents=True, exist_ok=True)
     setup_logging(settings.buffer_dir)
@@ -180,7 +192,7 @@ def run() -> None:
     stop, analysis = threading.Event(), threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     task_id, tag = socket.gethostname(), image_tag()
-    stats = {"send_fail": 0, "restarts": 0}
+    stats = {"send_fail": 0, "restarts": restarts}
     telegram = TelegramClient(settings.telegram_token, settings.admin_ids, f"[{settings.stage.upper()}]", stats)
     outbox = Outbox(settings.buffer_dir / "buffer.db", settings.section("buffer").get("max_mb", 50))
     db = connect(settings, stop, telegram)
@@ -205,14 +217,11 @@ def run() -> None:
     p1 = collector.Collector(ctx, outbox)
     every(stop, 3, p1.tick, "p1")
     every(stop, 60, lambda: sampler.sample(ctx), "p2")
-    try:
-        version = repos.coord.schema_version()
-    except Exception:
-        version = 0
-    if version != SCHEMA_VERSION:
-        log.warning("schema mismatch: expected=%s actual=%s", SCHEMA_VERSION, version)
-        telegram.send(None, render.schema_mismatch(SCHEMA_VERSION, version))
-    else:
+    if restarts:
+        log.warning("analysis restarted: restarts=%s", restarts)
+        telegram.send(None, render.analysis_restarted(restarts))
+
+    def begin() -> None:
         analysis.set()
         flags = FlagCache(settings.buffer_dir / "flags.db")
         leader.start()
@@ -228,7 +237,18 @@ def run() -> None:
 
             DiscordReceiver(ctx, stop).start()
         threading.Thread(target=consume, args=(ctx, sched, stop, analysis), name="server-bot-events", daemon=True).start()
+
+    version = schema_version(repos)
+    waited = version != SCHEMA_VERSION
+    if waited:
+        log.warning("schema mismatch: expected=%s actual=%s", SCHEMA_VERSION, version)
+        telegram.send(None, render.schema_mismatch(SCHEMA_VERSION, version))
     while not stop.is_set():
+        started = analysis.is_set()
+        begin_when_ready(repos, analysis, begin)
+        if waited and not started and analysis.is_set():
+            log.warning("analysis started: schema=%s", SCHEMA_VERSION)
+            telegram.send(None, render.schema_ready(SCHEMA_VERSION))
         if sampler.rss_bytes() > RSS_LIMIT:
             log.warning("rss limit exceeded: rss=%s", sampler.rss_bytes())
             stop.set()

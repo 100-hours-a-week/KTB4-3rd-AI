@@ -11,6 +11,12 @@ Params = Sequence[Any] | Mapping[str, Any] | None
 RDS_CA = "/opt/certs/rds-global-bundle.pem"
 
 
+def failure_reason(exc: Exception) -> str:
+    if isinstance(exc, pymysql.MySQLError) and exc.args:
+        return " ".join(str(a) for a in exc.args)[:200]
+    return type(exc).__name__
+
+
 def tls(query: dict[str, list[str]]) -> dict | None:
     mode = (query.get("ssl") or [""])[0].lower()
     if mode == "verify":

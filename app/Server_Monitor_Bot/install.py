@@ -106,6 +106,9 @@ def main(argv=None) -> int:
     if not settings.db_url:
         print("AI_DB_URL이 없습니다", file=sys.stderr)
         return 1
+    if not settings.stage:
+        print("AI_DB_URL의 DB 이름이 ai_<local|dev|stg|prod> 형식이 아닙니다", file=sys.stderr)
+        return 1
     from .runtime.context import Ctx
     from .store.embed import Embedder
     from .store.mysql import MySQLDB

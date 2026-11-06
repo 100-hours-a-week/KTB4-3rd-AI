@@ -530,7 +530,15 @@ def store_down(minutes: int) -> str:
 
 
 def schema_mismatch(expected: int, actual: int) -> str:
-    return f"⚠️ 스키마 버전 불일치 (기대 {expected}, 실제 {actual})\n기록 적재만 하고 분석은 멈춥니다"
+    return f"⚠️ 스키마 버전 불일치 (기대 {expected}, 실제 {actual})\n맞을 때까지 분석을 멈춥니다. 맞으면 재시작 없이 시작합니다"
+
+
+def schema_ready(version: int) -> str:
+    return f"✅ 스키마 버전 {version} 확인\n분석을 시작합니다"
+
+
+def analysis_restarted(restarts: int) -> str:
+    return f"⚠️ 분석 프로세스를 다시 띄웠습니다 ({restarts}회째)\n멈춘 동안의 기록은 버퍼에서 이어서 처리합니다"
 
 
 def budget_reached(subject: str, count, calls) -> str:
