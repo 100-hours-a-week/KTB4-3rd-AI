@@ -15,7 +15,7 @@ from .core.logging import get_logger, request_context
 from .core.telemetry import RequestMetrics, build_meter_provider
 from .features.receipt import main as receipt
 from .features.taxi_meter import main as taxi_meter
-from .inner_queue import Scheduler
+from .inner_queue import TOTAL, Scheduler
 from .llm import load, prepare_modal
 
 logger = get_logger(__name__)
@@ -36,10 +36,11 @@ def preload(device: str) -> None:
 async def lifespan(app: FastAPI):
     monitor.start(app)
     # 요청은 모두 내부 큐(전체 30 / API 20 / GPU 10)를 거친다. 연결은 여기서만 한다.
+    lanes = {"api": TOTAL, "gpu": 0} if DEVICE == "off" else {}
     scheduler = Scheduler({
         "taxi_meter": (taxi_meter.run_api, taxi_meter.run_gpu),
         "receipt": (receipt.run_api, receipt.run_gpu),
-    })
+    }, **lanes)
     await scheduler.start()
     app.state.scheduler = scheduler
     # 이미지 모델 준비는 기동을 막지 않는다. 준비 중이면 GPU 큐 요청도 luna가 처리한다.

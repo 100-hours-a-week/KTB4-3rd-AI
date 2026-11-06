@@ -4,7 +4,8 @@ import logging
 import re
 
 from app.core.exceptions import ModelNotReady, UpstreamError
-from app.inner_queue import Scheduler
+from app.inner_queue import TOTAL, Scheduler
+from app.inner_queue.scheduler import API_WORKERS
 
 EMPTY = {"total": 0, "api": 0, "gpu": 0}
 
@@ -85,14 +86,14 @@ def test_31st_waits_for_slot(caplog):  # A2
 def test_one_at_a_time_per_worker():  # A3
     async def main():
         fake = Fake()
-        s = Scheduler(fake.runs())
+        s = Scheduler(fake.runs(), api_workers=3)
         await s.start()
         tasks = [submit(s, f"u{i}") for i in range(30)]
         await settle()
-        assert fake.running == {"api": 1, "gpu": 1}
+        assert fake.running == {"api": 3, "gpu": 1}
         fake.gate.set()
         await asyncio.gather(*tasks)
-        assert fake.peak == {"api": 1, "gpu": 1}
+        assert fake.peak == {"api": 3, "gpu": 1}
         await s.stop(1)
     asyncio.run(main())
 
@@ -127,7 +128,7 @@ def test_errors(caplog):  # A4, A8
 def test_expired_not_run(caplog):  # A5, A8
     async def main():
         fake = Fake()
-        s = Scheduler(fake.runs(), total=3, api=2, gpu=1, deadline=0.2, min_left=0.15)
+        s = Scheduler(fake.runs(), total=3, api=2, gpu=1, api_workers=1, deadline=0.2, min_left=0.15)
         await s.start()
         first, late = submit(s, "first"), submit(s, "late")
         await asyncio.sleep(0.08)  # late가 큐에서 0.08초 기다림 → 남은 0.12 < 0.15
@@ -150,7 +151,7 @@ def test_expired_not_run(caplog):  # A5, A8
 def test_cancelled_skipped(caplog):  # A6
     async def main():
         fake = Fake()
-        s = Scheduler(fake.runs(), total=3, api=2, gpu=1)
+        s = Scheduler(fake.runs(), total=3, api=2, gpu=1, api_workers=1)
         await s.start()
         first, gone = submit(s, "first"), submit(s, "gone")
         await settle()
@@ -238,5 +239,93 @@ def test_runs_in_caller_context():  # 워커 로그도 넣은 요청의 request_
         await s.stop(1)
         assert sorted(seen) == ["req-a", "req-b"]
         assert request_id.get() is None  # 워커 쪽 값이 새지 않는다
+
+    asyncio.run(main())
+
+
+def test_running_job_stops_at_deadline(caplog):
+    async def main():
+        started, cancelled = asyncio.Event(), []
+
+        async def slow(url):
+            started.set()
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                cancelled.append(url)
+                raise
+
+        s = Scheduler({"taxi_meter": (slow, slow)}, total=2, api=1, gpu=1, deadline=0.2, min_left=0.05)
+        await s.start()
+        try:
+            await s.submit("taxi_meter", "u")
+        except Exception as exc:
+            assert exc.code == "QUEUE_TIMEOUT" and exc.status_code == 504
+        else:
+            raise AssertionError("expected QueueTimeout")
+        assert cancelled == ["u"]
+        await asyncio.sleep(0.01)
+        assert s.stats() == EMPTY
+        await s.stop(1)
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(main())
+    assert re.fullmatch(r"queue job expired: kind=taxi_meter route=api waited_ms=\d+ ran_ms=\d+", messages(caplog, "queue job expired")[0])
+
+
+def test_off_device_gives_all_slots_to_api(monkeypatch):
+    import app.main as server
+
+    async def main():
+        monkeypatch.setattr(server, "DEVICE", "off")
+        async with server.lifespan(server.app):
+            scheduler = server.app.state.scheduler
+            assert scheduler.api == TOTAL
+            assert scheduler.api_workers == API_WORKERS
+            assert len(scheduler.workers) == API_WORKERS + 1
+
+    asyncio.run(main())
+
+
+def test_inner_timeout_error_is_internal_not_queue_timeout(caplog):
+    async def main():
+        async def broken(url):
+            raise TimeoutError("inner")
+
+        s = Scheduler({"taxi_meter": (broken, broken)}, total=2, api=1, gpu=1)
+        await s.start()
+        try:
+            await s.submit("taxi_meter", "u")
+        except Exception as exc:
+            assert exc.code == "INTERNAL" and exc.status_code == 500
+        else:
+            raise AssertionError("expected InternalError")
+        await s.stop(1)
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(main())
+    assert messages(caplog, "queue job expired") == []
+    assert messages(caplog, "unhandled error")
+
+
+def test_worker_cancel_also_cancels_running_job():
+    async def main():
+        started, cancelled = asyncio.Event(), []
+
+        async def slow(url):
+            started.set()
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                cancelled.append(url)
+                raise
+
+        s = Scheduler({"taxi_meter": (slow, slow)}, total=2, api=1, gpu=1)
+        await s.start()
+        call = asyncio.create_task(s.submit("taxi_meter", "u"))
+        await started.wait()
+        await s.stop(0.01)
+        await asyncio.gather(call, return_exceptions=True)
+        assert cancelled == ["u"] and s.stats() == EMPTY
 
     asyncio.run(main())

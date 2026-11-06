@@ -1,4 +1,4 @@
-# 요청을 API 큐와 GPU 큐에 나눠 담고, 큐마다 워커 하나가 한 건씩 실행한다.
+# 요청을 API 큐와 GPU 큐에 나눠 담는다. API 큐는 워커 API_WORKERS개, GPU 큐는 1개이고 워커마다 한 건씩 실행한다.
 # 브로커와 모델은 모른다. 실행 함수(run_api, run_gpu)는 kind마다 밖에서 받는다.
 # 상태는 이벤트 루프 하나에서만 바뀌므로 잠금이 없다.
 # 큐 개수(count)에는 대기 중과 처리 중 작업이 모두 들어간다.
@@ -17,18 +17,21 @@ Runner = Callable[[str], Awaitable[dict]]  # image_url -> 응답 dict
 TOTAL = 30        # 전체 자리
 API = 20          # API 큐 상한
 GPU = 10          # GPU 큐 상한 (= TOTAL - API)
+API_WORKERS = 16  # API 큐 워커 수. 8·16·30 비교(동시 35건)에서 P95 9.0·5.2·4.5초라 10초 안쪽 여유를 두고 16으로 둔다
 DEADLINE = 60.0   # BE read-timeout
 MIN_LEFT = 30.0   # luna 실측 최대 30.4초. 이보다 적게 남으면 시작하지 않는다
 
 
 class Scheduler:
     def __init__(self, runs: Mapping[str, tuple[Runner, Runner]], *, total: int = TOTAL, api: int = API,
-                 gpu: int = GPU, deadline: float = DEADLINE, min_left: float = MIN_LEFT) -> None:
+                 gpu: int = GPU, api_workers: int = API_WORKERS, deadline: float = DEADLINE,
+                 min_left: float = MIN_LEFT) -> None:
         # 전체 자리를 얻으면 반드시 한쪽 큐에 들어가야 하므로 total = api + gpu여야 한다.
         if total != api + gpu:
             raise ValueError("total must equal api + gpu")
         self.runs = runs
         self.api = api
+        self.api_workers = api_workers
         self.deadline = deadline
         self.min_left = min_left
         self.slots = asyncio.Semaphore(total)
@@ -40,7 +43,8 @@ class Scheduler:
         self.workers: list[asyncio.Task] = []
 
     async def start(self) -> None:
-        self.workers = [asyncio.create_task(self.work(route)) for route in self.queues]
+        routes = ["api"] * self.api_workers + ["gpu"]
+        self.workers = [asyncio.create_task(self.work(route)) for route in routes]
 
     async def stop(self, timeout: float) -> None:
         # 새 작업 거절 → 남은 작업이 끝나길 timeout까지 기다림 → 워커 취소 → 못 한 작업은 ModelNotReady
@@ -104,7 +108,12 @@ class Scheduler:
         result, error = None, None
         try:
             run_api, run_gpu = self.runs[job.kind]
-            result = await (run_api if job.route == "api" else run_gpu)(job.image_url)
+            run = (run_api if job.route == "api" else run_gpu)(job.image_url)
+            result = await self.within(run, self.deadline - (start - job.received))
+        except QueueTimeout as exc:
+            logger.warning("queue job expired: kind=%s route=%s waited_ms=%d ran_ms=%d", job.kind, job.route, waited_ms,
+                           int((loop.time() - start) * 1000))
+            error = exc
         except AppError as exc:
             error = exc
         except Exception as exc:
@@ -118,6 +127,17 @@ class Scheduler:
             job.future.set_exception(error)
         else:
             job.future.set_result(result)
+
+    async def within(self, run: Awaitable[dict], left: float) -> dict:
+        task = asyncio.ensure_future(run)
+        try:
+            done, _ = await asyncio.wait({task}, timeout=left)
+        finally:
+            task.cancel()
+        if not done:
+            await asyncio.gather(task, return_exceptions=True)
+            raise QueueTimeout()
+        return task.result()
 
     def finish(self, job: Job) -> None:
         # 성공·실패·건너뜀·시간 초과·종료 모두 여기서 자리를 돌려준다.

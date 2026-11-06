@@ -7,7 +7,7 @@
 # 422 JUDGE_PARSE_FAILED   모델 출력이 JSON이 아니거나 필요한 값이 없음. 영수증이 이체 완료가 아닐 때도 여기로 온다
 # 502 UPSTREAM_FAILED      OpenAI 호출 실패 또는 응답 형식이 다름
 # 503 MODEL_NOT_READY      키, 가중치, 패키지가 없음. api, ocr, open, modal 중 어디인지는 로그에만 남긴다. 서버 종료 중 받은 요청도 여기로 온다
-# 504 QUEUE_TIMEOUT        내부 큐에서 기다리다 대기 상한(60초)을 넘김
+# 504 QUEUE_TIMEOUT        내부 큐 대기와 실행을 합쳐 상한(60초)을 넘김
 # 500 INTERNAL             등록되지 않은 모델이거나 추론 중 예외
 
 
@@ -20,7 +20,7 @@ HINTS = {
     "JUDGE_PARSE_FAILED": "사진에서 값을 확정하지 못함. 사진 품질과, 영수증은 이체 완료 화면인지 확인",
     "UPSTREAM_FAILED": "OpenAI 또는 Modal 호출 실패. 같은 request_id의 openai/modal 로그에서 reason 확인",
     "MODEL_NOT_READY": "OPENAI_API_KEY_1(또는 OPENAI_API_KEY)이 컨테이너에 주입됐는지 확인",
-    "QUEUE_TIMEOUT": "요청이 몰려 대기 상한(60초)을 넘김. 같은 시각 queue job expired 로그 확인",
+    "QUEUE_TIMEOUT": "대기와 실행을 합쳐 상한(60초)을 넘김. queue job expired 로그의 waited_ms(요청 몰림)와 ran_ms(모델 지연) 확인",
     "INTERNAL": "처리되지 않은 예외. 같은 request_id의 Traceback 확인",
 }
 
