@@ -101,7 +101,7 @@ def test_seed_draft_save_and_versions(repos):
     k = repos.knowledge
     items, h = load_seed()
     stats = k.upsert_seed(items, h)
-    assert stats["inserted"] == 23 and k.seed_done(items, h) and len(k.active()) == 23
+    assert stats["inserted"] == 24 and k.seed_done(items, h) and len(k.active()) == 24
     assert k.upsert_seed(items, h)["inserted"] == 0
     hits = k.search("OpenAI 429", step_ids=["image_fetch"], limit=5)
     assert len(hits) == 5 and "image_fetch" in hits[0]["step_ids"]
@@ -217,7 +217,7 @@ def test_reindex_rebuilds_empty_collections(repos):
         repos.knowledge.vec.drop(name)
     ctx = SimpleNamespace(repos=repos, settings=load(), telegram=None, image_tag="t")
     out = reindex(ctx)
-    assert out["rebuilt"] == ["chat"] and out["chat"] == 2 and out["sync"]["inserted"] == 23 and out["sync"]["docs"]["docs"] == 9
+    assert out["rebuilt"] == ["chat"] and out["chat"] == 2 and out["sync"]["inserted"] == 24 and out["sync"]["docs"]["docs"] == 9
     assert repos.knowledge.vec.payloads("chat", ["chat:99:500"])["chat:99:500"]["ts"] == int(old)
     again = reindex(ctx)
     assert again["rebuilt"] == [] and again["sync"]["skipped"] and again["sync"]["docs"]["skipped"]

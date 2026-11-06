@@ -136,5 +136,12 @@
    "symptom": "INTERNAL(500) 응답", "cause": "처리되지 않은 예외(코드 버그)",
    "resolution": "로그 스택의 파일:줄 수정, 회귀 테스트 추가. 배포 직후 발생이면 롤백 검토",
    "checks": ["로그 'unhandled error' 스택", "스택이 가리키는 코드 줄", "직전 배포 태그"],
-   "policy_key": null, "alert": "immediate", "severity": "high"}
+   "policy_key": null, "alert": "immediate", "severity": "high"},
+  {"id": "KN_QUEUE_TIMEOUT", "title": "내부 큐 기한 초과로 504", "features": [], "step_ids": ["queue_wait"],
+   "match": {"step_id": ["queue_wait"]},
+   "symptom": "요청이 QUEUE_TIMEOUT(504)으로 끝난다",
+   "cause": "대기가 30초를 넘겨 시작하지 못했거나, 대기와 실행을 합쳐 60초를 넘겼다. 요청이 API 워커 16개로 처리할 수 있는 양보다 몰렸거나 OpenAI 응답이 느려졌을 때 생긴다",
+   "resolution": "로그의 waited_ms와 ran_ms를 본다. waited_ms가 크면 요청 몰림이니 같은 시각 요청 수를 확인하고, ran_ms가 크면 OpenAI 지연이니 luna_call 지연과 429를 확인한다. 임시로 재시도를 안내하고, 반복되면 워커 수(API_WORKERS)와 태스크 CPU를 검토한다",
+   "checks": ["로그 'queue job expired'의 waited_ms·ran_ms", "같은 시각 요청 수", "luna_call 지연·429"],
+   "policy_key": null, "alert": "diagnose", "severity": "high"}
 ]

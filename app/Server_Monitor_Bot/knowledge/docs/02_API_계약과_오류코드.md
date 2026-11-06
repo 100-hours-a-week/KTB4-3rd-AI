@@ -63,10 +63,9 @@ image_URL이 만족해야 하는 조건이다.
 | 422 | JUDGE_PARSE_FAILED | model output is not valid | 값을 확정하지 못함. 영수증이 이체 완료가 아닐 때 포함 |
 | 502 | UPSTREAM_FAILED | upstream request failed | OpenAI 호출 실패 또는 응답 형식이 다름 |
 | 503 | MODEL_NOT_READY | model is not ready | 판독할 수 없음(키 없음 등). 서버 종료 중 받은 요청 포함 |
-| 504 | QUEUE_TIMEOUT | queue wait timed out | 내부 큐 대기 상한 초과 |
+| 504 | QUEUE_TIMEOUT | queue wait timed out | 내부 큐 대기와 실행을 합쳐 상한 초과 |
 | 500 | INTERNAL | internal error | 처리되지 않은 서버 오류 |
 
-- 504 QUEUE_TIMEOUT과 "종료 중 503"은 명세 문서에 없고 코드에만 있다. 코드 기준이다.
 - 호스트, 상태 코드, 바이트 수 같은 원인은 응답이 아니라 로그에만 남긴다.
 
 ## 요청 추적 헤더(X-Request-ID)

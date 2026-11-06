@@ -53,7 +53,7 @@ def test_install_check_idempotent_and_reembed(tmp_path):
         assert all("sk-" not in line for line in lines)
         assert run(ctx, out=lines.append) == 0 and "MySQL 스키마: 새로 적용" in lines
         first = counts(vec)
-        assert first["knowledge"] == 23 and first["docs"] > 9 and first["chat"] == 0
+        assert first["knowledge"] == 24 and first["docs"] > 9 and first["chat"] == 0
         assert run(ctx, out=lines.append) == 0 and lines.count("MySQL 스키마: 이미 있음") == 1 and counts(vec) == first
         wide = ctx_for(db, client, 16, tmp_path)
         assert run(wide, redo=True, out=lines.append) == 0 and counts(vec) == first
