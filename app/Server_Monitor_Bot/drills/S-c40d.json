@@ -1,0 +1,4 @@
+{"id": "S-c40d", "group": "C", "feature": "receipt", "image_url": "",
+ "inject": {"point": "luna_parse", "behavior": {"raw": "{\"amount_cost\": 12000, \"transfer_info\": \"이체 완료\", \"sender_name\": \"훈련\", \"send_time\": null}"}},
+ "expected": {"step_id": "respond", "reason": null, "cause_text": "장애 아님(정상 응답)"},
+ "hide_knowledge": []}

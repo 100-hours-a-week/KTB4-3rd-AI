@@ -5,6 +5,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+logs/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -25,3 +26,7 @@ CLAUDE.local.md
 htmlcov/
 coverage.xml
 .hypothesis/
+infra/ai-db/mysql_data/
+infra/ai-db/qdrant_data/
+log_monitor.json
+*_raw.json
