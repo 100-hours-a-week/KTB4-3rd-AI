@@ -6,6 +6,7 @@ import threading
 from pathlib import PurePath
 
 from ...ops_agent.roles import role_of
+from ...runtime.leader import backoff
 from ..telegram.receiver import to_event
 
 log = logging.getLogger("app.Server_Monitor_Bot.discord")
@@ -44,15 +45,18 @@ class DiscordReceiver(threading.Thread):
             self.ctx.enqueue(event, None)
 
     def run(self) -> None:
+        fails = 0
         while not self.stop_event.is_set():
             if not self.ctx.is_leader():
                 self.stop_event.wait(5)
                 continue
+            self.ready = False
             try:
                 asyncio.run(self.session())
             except Exception as exc:
-                log.warning("discord receiver failed: error=%s", type(exc).__name__)
-            self.stop_event.wait(5)
+                fails = 0 if self.ready else fails + 1
+                log.warning("discord receiver failed: error=%s fails=%s", type(exc).__name__, fails)
+            self.stop_event.wait(backoff(5, fails))
 
     async def session(self) -> None:
         import discord
@@ -62,6 +66,14 @@ class DiscordReceiver(threading.Thread):
         intents.guilds = intents.guild_messages = intents.message_content = True
         client = discord.Client(intents=intents)
         loop = asyncio.get_running_loop()
+
+        @client.event
+        async def on_ready():
+            self.ready = True
+            if client.get_channel(channel) is None:
+                log.warning("discord channel not visible: channel=%s guilds=%s", channel, len(client.guilds))
+            else:
+                log.info("discord connected: channel=%s", channel)
 
         @client.event
         async def on_message(m):
