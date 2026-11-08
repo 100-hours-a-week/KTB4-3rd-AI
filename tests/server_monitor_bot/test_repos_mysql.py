@@ -12,6 +12,7 @@ from app.Server_Monitor_Bot.knowledge.schema import load_seed
 from app.Server_Monitor_Bot.store.mysql import MySQLDB
 from app.Server_Monitor_Bot.store.repos import Repos
 from app.Server_Monitor_Bot.store.repos.base import dt
+from app.Server_Monitor_Bot.store.repos.knowledge import key
 from app.Server_Monitor_Bot.store.repos.metrics import bucket_rows
 from app.Server_Monitor_Bot.store.vector import VectorDB
 
@@ -103,6 +104,9 @@ def test_seed_draft_save_and_versions(repos):
     stats = k.upsert_seed(items, h)
     assert stats["inserted"] == 24 and k.seed_done(items, h) and len(k.active()) == 24
     assert k.upsert_seed(items, h)["inserted"] == 0
+    assert k.reembed_stale() == 0
+    k.vec.set_payload("knowledge", key(items[0]["id"]), {"embed_v": 1})
+    assert k.reembed_stale() == 1 and k.reembed_stale() == 0
     hits = k.search("OpenAI 429", step_ids=["image_fetch"], limit=5)
     assert len(hits) == 5 and "image_fetch" in hits[0]["step_ids"]
     body = {f: v for f, v in items[9].items() if f != "id"}

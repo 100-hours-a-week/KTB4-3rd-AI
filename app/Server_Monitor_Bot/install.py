@@ -9,7 +9,7 @@ from pathlib import Path
 from .config.settings import load
 from .docs.index import text_of as doc_text
 from .docs.models import Chunk
-from .store.repos.knowledge import embed_text, key
+from .store.repos.knowledge import EMBED_V, embed_text, key
 from .store.vector import COLLECTIONS
 
 SCHEMA = Path(__file__).with_name("store") / "schema.sql"
@@ -70,7 +70,7 @@ def reembed(vec, embed, chat_repo, backup_dir: Path) -> dict:
         vec.drop(name)
         vec.ensure(name)
         for i in range(0, len(rows), BATCH):
-            vec.upsert_many(name, [(point_key(name, p), v, p) for p, v in zip(rows[i:i + BATCH], vectors[name][i:i + BATCH])])
+            vec.upsert_many(name, [(point_key(name, p), v, {**p, "embed_v": EMBED_V} if name == "knowledge" else p) for p, v in zip(rows[i:i + BATCH], vectors[name][i:i + BATCH])])
     vec.drop("chat")
     vec.ensure("chat")
     return {"backup": str(path), "knowledge": len(data["knowledge"]), "docs": len(data["docs"]), "chat_pending": chat_repo.mark_all_pending()}

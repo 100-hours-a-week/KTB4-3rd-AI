@@ -1,7 +1,7 @@
 # 장애 지식: 원본은 Qdrant <stage>_knowledge(현재 active·deleted, 이전 버전 archived). 정리본은 MySQL, [저장]은 이름 잠금 안에서 처리한다.
 import logging
 import re
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from http import HTTPStatus
 
@@ -231,9 +231,19 @@ class Knowledge:
         except Exception as exc:
             log.warning("knowledge reembed failed: error=%s", type(exc).__name__)
             return 0
-        for k, vector in zip(stale, vectors):
-            self.vec.upsert(C, key(k["id"]), vector, {**k, "embed_v": EMBED_V})
-        return len(stale)
+        done = 0
+        try:
+            with self.lock() if self.db else nullcontext():
+                fresh = self.vec.payloads(C, [key(k["id"]) for k in stale])
+                for k, vector in zip(stale, vectors):
+                    now_k = fresh.get(key(k["id"]))
+                    if not now_k or now_k.get("embed_v") == EMBED_V or (now_k.get("version"), now_k.get("status")) != (k.get("version"), k.get("status")):
+                        continue
+                    self.vec.upsert(C, key(k["id"]), vector, {**now_k, "embed_v": EMBED_V})
+                    done += 1
+        except TimeoutError:
+            log.warning("knowledge reembed skipped: reason=lock_busy")
+        return done
 
     def seed_done(self, items: list[dict], seed_hash: str) -> bool:
         rows = {k["id"]: k for k in self.current()}
