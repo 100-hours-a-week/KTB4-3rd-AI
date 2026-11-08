@@ -1,6 +1,7 @@
 # 문서 컬렉션(<stage>_docs) 하나만 다룬다: 목록·절 조회·쓰기·지우기·의미 검색. 원본이 Qdrant다.
 from datetime import datetime, timezone
 
+from ..store.rerank import rerank
 from .chunk import sha
 from .models import Chunk, Document
 
@@ -76,8 +77,11 @@ class DocIndex:
             self.delete_keys([key])
         return c.key
 
-    def search(self, query: str, *, limit: int = 5, min_score: float = 0.0, per_doc: int = 2, vector: list[float] | None = None) -> list[dict]:
-        hits = self.vec.search(C, vector or self.embedder.one(query), limit=limit * per_doc, equals={"status": "active"})
+    def search(self, query: str, *, limit: int = 5, min_score: float = 0.0, per_doc: int = 2, vector: list[float] | None = None,
+               lexical: float = 0.0) -> list[dict]:
+        hits = self.vec.search(C, vector or self.embedder.one(query), limit=limit * per_doc * (2 if lexical > 0 else 1), equals={"status": "active"})
+        hits = rerank(query, [h for h in hits if h["score"] >= min_score], lambda h: f"{h.get('title', '')} > {h.get('section', '')}",
+                      lambda h: h.get("text", ""), lexical)
         out, seen = [], {}
         for h in hits:
             if h["score"] < min_score or seen.get(h["doc_id"], 0) >= per_doc:
