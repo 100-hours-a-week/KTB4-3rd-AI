@@ -68,6 +68,8 @@ chain_depth = 3
 [search]
 knowledge_min_score = 0.4
 docs_min_score = 0.4
+knowledge_lexical = 0.3
+docs_lexical = 0.1
 chat_min_score = 0.35
 docs_prefetch = 3
 docs_per_file = 2

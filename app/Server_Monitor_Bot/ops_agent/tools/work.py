@@ -85,7 +85,8 @@ def recent_deploy(hours: int = 24) -> dict:
 def knowledge_search(query: str, top_k: int = 5, step_ids: list[str] | None = None, vector: list[float] | None = None) -> dict:
     c = ctx()
     rows = c.repos.knowledge.search(query, hide=list(hide_knowledge.get()), step_ids=step_ids or (), limit=min(int(top_k), 5),
-                                    min_score=c.settings.section("search").get("knowledge_min_score", 0.4), vector=vector)
+                                    min_score=c.settings.section("search").get("knowledge_min_score", 0.4), vector=vector,
+                                    lexical=c.settings.section("search").get("knowledge_lexical", 0.0))
     if not rows:
         return wrap(f"kn:none@{_hm()}", "관련 지식 없음", [])
     data = [{"id": k["id"], "version": k["version"], "title": k["title"], "cause": k["cause"], "resolution": k["resolution"],
@@ -110,7 +111,7 @@ def docs_search(query: str, top_k: int = 3, vector: list[float] | None = None) -
     c = ctx()
     cfg = c.settings.section("search")
     rows = c.repos.docs.search(query, limit=min(int(top_k), 5), min_score=cfg.get("docs_min_score", 0.4), per_doc=cfg.get("docs_per_file", 2),
-                               vector=vector)
+                               vector=vector, lexical=cfg.get("docs_lexical", 0.0))
     if not rows:
         return wrap(f"doc:none@{_hm()}", "관련 문서 없음", [])
     data = [{"ref": f"doc:{r['doc_id']}#{r['order']}", "doc": r["doc_id"], "section": r["section"], "text": r["text"], "origin": r.get("origin"),

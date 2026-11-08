@@ -3,17 +3,38 @@ import logging
 import re
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from http import HTTPStatus
 
 from ...knowledge.schema import body, load_seed, signal_text, validate
+from ..rerank import rerank
 from .base import dt, insert_with_id, js, unjs
 
 log = logging.getLogger("app.Server_Monitor_Bot.repos")
 C = "knowledge"
 GONE = {"ok": False, "message": "이미 처리했거나 없는 정리본입니다"}
+EMBED_V = 2
+
+
+def status_phrase(code) -> str:
+    try:
+        return HTTPStatus(int(code)).phrase
+    except ValueError:
+        return ""
+
+
+def signal_words(match: dict) -> str:
+    from ...channels.telegram.render import ERRORS, REASONS, STATUS, STEPS
+
+    words = [f"{s} {STEPS.get(s, '')}" for s in match.get("step_id") or []]
+    words += [f"{s} {status_phrase(s)} {STATUS.get(int(s), '')}" for s in match.get("status") or [] if str(s).isdigit()]
+    words += [f"{s} {REASONS.get(s, '')}" for s in match.get("reason") or []]
+    words += [f"{s} {ERRORS.get(s, '')}" for s in match.get("error_code") or []]
+    return ", ".join(" ".join(w.split()) for w in words)
 
 
 def embed_text(k: dict) -> str:
-    return f"{k['title']}\n{k['symptom']}\n{signal_text(k.get('match') or {})}\n{k['cause']}"
+    match = k.get("match") or {}
+    return f"{k['title']}\n{k['symptom']}\n{signal_text(match)}\n{signal_words(match)}\n{k['cause']}"
 
 
 def key(kid: str, version: int | None = None) -> str:
@@ -30,7 +51,7 @@ class Knowledge:
 
     def payload(self, item: dict, kid: str, version: int, source: str, by, seed_hash: str | None = None, draft_id: str | None = None) -> dict:
         return {**body(item), "id": kid, "knowledge_id": kid, "version": version, "source": source, "status": "active",
-                "seed_hash": seed_hash, "updated_by": str(by), "updated_at": now(), "draft_id": draft_id}
+                "seed_hash": seed_hash, "updated_by": str(by), "updated_at": now(), "draft_id": draft_id, "embed_v": EMBED_V}
 
     def seed(self) -> list[dict]:
         try:
@@ -59,17 +80,19 @@ class Knowledge:
         return [{f: k.get(f) for f in ("id", "title", "version", "source")} for k in sorted(rows, key=lambda k: k["id"])[:limit]]
 
     def search(self, query: str, *, hide: list[str] = (), step_ids: list[str] = (), limit: int = 5, min_score: float = 0.0,
-               vector: list[float] | None = None) -> list[dict]:
+               vector: list[float] | None = None, lexical: float = 0.0) -> list[dict]:
         try:
             vector = vector or self.embed.one(query)
+            fetch = limit * 3 if lexical > 0 else limit
+            pick = lambda found, n: rerank(query, [h for h in found if h["score"] >= min_score], lambda h: h["title"], embed_text, lexical)[:n]
             hits = []
             if step_ids:
-                hits = [h for h in self.vec.search(C, vector, limit=limit, equals={"status": "active"}, any_of={"step_ids": list(step_ids)},
-                                                   none_of={"knowledge_id": list(hide)}) if h["score"] >= min_score]
+                hits = pick(self.vec.search(C, vector, limit=fetch, equals={"status": "active"}, any_of={"step_ids": list(step_ids)},
+                                            none_of={"knowledge_id": list(hide)}), limit)
             if len(hits) < limit:
                 seen = [h["id"] for h in hits]
-                hits += [h for h in self.vec.search(C, vector, limit=limit - len(hits), equals={"status": "active"},
-                                                    none_of={"knowledge_id": [*hide, *seen]}) if h["score"] >= min_score]
+                hits += pick(self.vec.search(C, vector, limit=fetch, equals={"status": "active"}, none_of={"knowledge_id": [*hide, *seen]}),
+                             limit - len(hits))
             return hits
         except Exception as exc:
             log.warning("knowledge search fallback: error=%s", type(exc).__name__)
@@ -198,6 +221,19 @@ class Knowledge:
         except Exception as exc:
             log.warning("knowledge embed failed: error=%s", type(exc).__name__)
             return None
+
+    def reembed_stale(self) -> int:
+        stale = [k for k in self.current() if k.get("embed_v") != EMBED_V]
+        if not stale:
+            return 0
+        try:
+            vectors = self.embed.many([embed_text(k) for k in stale])
+        except Exception as exc:
+            log.warning("knowledge reembed failed: error=%s", type(exc).__name__)
+            return 0
+        for k, vector in zip(stale, vectors):
+            self.vec.upsert(C, key(k["id"]), vector, {**k, "embed_v": EMBED_V})
+        return len(stale)
 
     def seed_done(self, items: list[dict], seed_hash: str) -> bool:
         rows = {k["id"]: k for k in self.current()}

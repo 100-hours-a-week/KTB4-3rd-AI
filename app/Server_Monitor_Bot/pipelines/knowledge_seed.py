@@ -22,6 +22,7 @@ def sync(ctx, notify: bool = True) -> dict:
         errors = validate(item, ctx.settings.policy)
         (broken.append((item.get("id", "?"), errors)) if errors else valid.append(item))
     stats = {"skipped": True} if repos.knowledge.seed_done(valid, seed_hash) else repos.knowledge.upsert_seed(valid, seed_hash)
+    stats["reembedded"] = repos.knowledge.reembed_stale()
     stats["docs"] = {"skipped": True} if repo_done(repos.docs, **cfg) else sync_repo(repos.docs, **cfg)
     docs = stats["docs"]
     changed = stats.get("inserted") or stats.get("updated") or stats.get("index_failed") or docs.get("added") or docs.get("removed") or docs.get("failed")
