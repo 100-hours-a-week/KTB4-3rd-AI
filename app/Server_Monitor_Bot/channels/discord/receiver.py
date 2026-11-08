@@ -53,6 +53,7 @@ class DiscordReceiver(threading.Thread):
             self.ready = False
             try:
                 asyncio.run(self.session())
+                fails = 0
             except Exception as exc:
                 fails = 0 if self.ready else fails + 1
                 log.warning("discord receiver failed: error=%s fails=%s", type(exc).__name__, fails)

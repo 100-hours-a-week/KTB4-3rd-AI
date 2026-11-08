@@ -30,6 +30,9 @@ class Vec:
     def scroll(self, collection, equals=None, none_of=None):
         return self.rows
 
+    def payloads(self, collection, doc_ids):
+        return {f"knowledge:{r['id']}": r for r in self.rows if f"knowledge:{r['id']}" in doc_ids}
+
     def upsert(self, collection, doc_id, vector, payload):
         self.upserts.append(payload)
         self.rows = [payload if r["id"] == payload["id"] else r for r in self.rows]
@@ -60,3 +63,12 @@ def test_reembed_only_stale_items_once():
     k = kn.Knowledge(None, vec, Embed())
     assert k.reembed_stale() == 1 and vec.upserts[0]["id"] == "A" and vec.upserts[0]["embed_v"] == kn.EMBED_V
     assert k.reembed_stale() == 0
+
+
+def test_reembed_skips_items_changed_meanwhile():
+    vec = Vec([item("A", "a", 0.5, embed_v=1)])
+    k = kn.Knowledge(None, vec, Embed())
+    stale = vec.rows[0]
+    vec.rows = [{**stale, "version": 2, "status": "deleted"}]
+    vec.scroll = lambda collection, equals=None, none_of=None: [stale]
+    assert k.reembed_stale() == 0 and vec.upserts == []
