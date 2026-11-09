@@ -105,7 +105,26 @@ app.middleware("http")(request_context)
 
 def error(request, exc: AppError) -> JSONResponse:
     log = logger.error if exc.status_code >= 500 else logger.warning
-    log("request failed: path=%s status=%s code=%s hint=%s", request.url.path, exc.status_code, exc.code, HINTS.get(exc.code, "-"))
+    hint = HINTS.get(exc.code, "-")
+    if request.url.path == "/congestion-analyses":
+        hint = {
+            "REQUEST_INVALID": (
+                "혼잡도 요청의 필수 필드·자료형·길이와 같은 request_id의 "
+                "request is invalid 로그의 fields 확인"
+            ),
+            "MODEL_NOT_READY": (
+                "혼잡도 판정 키 설정 확인. 같은 request_id의 "
+                "congestion model key is missing 로그의 hint 확인"
+            ),
+            "UPSTREAM_FAILED": (
+                "혼잡도 모델 호출 실패. 같은 request_id의 "
+                "congestion model call failed 로그의 model·reason·status 확인"
+            ),
+        }.get(exc.code, hint)
+    log(
+        "request failed: path=%s status=%s code=%s hint=%s",
+        request.url.path, exc.status_code, exc.code, hint,
+    )
     body = {"success": False, "code": exc.code, "message": exc.message}
     return JSONResponse(body, status_code=exc.status_code)
 

@@ -11,6 +11,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.exceptions import AppError, ModelNotReady, RequestInvalid, UpstreamError
 from app.core.logging import request_id
 from app.features.congestion.decisions import DecisionsRelevanceScorer
 from app.features.congestion.models import CongestionAnalysisMessage
@@ -20,7 +21,57 @@ from app.features.congestion.service import (
     analyze_message,
     get_analyzer,
 )
-from app.main import app
+from app.main import app, error
+
+
+@pytest.mark.parametrize("path", ["/congestion-analyses", "/receipt", "/taxi_meter"])
+@pytest.mark.parametrize(
+    ("exc", "congestion_hint", "image_hint"),
+    [
+        (
+            RequestInvalid(),
+            (
+                "혼잡도 요청의 필수 필드·자료형·길이와 같은 request_id의 "
+                "request is invalid 로그의 fields 확인"
+            ),
+            "요청 JSON에 문자열 image_URL이 있는지 확인",
+        ),
+        (
+            ModelNotReady(),
+            (
+                "혼잡도 판정 키 설정 확인. 같은 request_id의 "
+                "congestion model key is missing 로그의 hint 확인"
+            ),
+            "OPENAI_API_KEY_1(또는 OPENAI_API_KEY)이 컨테이너에 주입됐는지 확인",
+        ),
+        (
+            UpstreamError(),
+            (
+                "혼잡도 모델 호출 실패. 같은 request_id의 "
+                "congestion model call failed 로그의 model·reason·status 확인"
+            ),
+            "OpenAI 또는 Modal 호출 실패. 같은 request_id의 openai/modal 로그에서 reason 확인",
+        ),
+    ],
+)
+def test_http_error_hint_depends_on_feature(
+    caplog: pytest.LogCaptureFixture,
+    path: str,
+    exc: AppError,
+    congestion_hint: str,
+    image_hint: str,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="app"):
+        response = error(httpx.Request("POST", f"http://testserver{path}"), exc)
+    assert response.status_code == exc.status_code
+    assert json.loads(response.body) == {
+        "success": False, "code": exc.code, "message": exc.message,
+    }
+    failed = [r for r in caplog.records if r.getMessage().startswith("request failed:")]
+    assert len(failed) == 1
+    hint = congestion_hint if path == "/congestion-analyses" else image_hint
+    assert f"hint={hint}" in failed[0].getMessage()
+    assert failed[0].levelno == (logging.ERROR if exc.status_code >= 500 else logging.WARNING)
 
 
 @pytest.mark.parametrize(
