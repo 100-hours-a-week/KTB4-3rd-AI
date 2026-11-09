@@ -55,8 +55,10 @@ async def lifespan(app: FastAPI):
     settings = kafka_settings()
     if settings is not None:
         from .features.congestion.kafka_consumer import create_worker
+        from .features.image_analysis.kafka_consumer import create_worker as create_image_analysis_worker
 
         app.state.kafka_workers.append(create_worker(settings))
+        app.state.kafka_workers.append(create_image_analysis_worker(settings, scheduler))
     for worker in app.state.kafka_workers:
         worker.start()
 
