@@ -111,14 +111,15 @@ result = asyncio.run(analyze_message(message, analyzer))
 단계별 예외는 [app/core/exceptions.py](../../core/exceptions.py)의 `AppError`이며,
 `code`, `status_code`를 가진다.
 
-| 실패 위치 | 코드 / HTTP 상태 | 뜻 | consumer 재시도 권고 |
+| 실패 위치 | 코드 / HTTP 상태 | 뜻 | Kafka 처리 |
 | --- | --- | --- | --- |
-| 요청 검증 | `REQUEST_INVALID` / 422 | consumer에서는 `ValidationError`. 결과 없이 원본을 DLT로 보냄 | 안 함. 요청 수정 필요 |
-| 관련성 선별 | 없음 | Decisions 호출·키 준비·응답 검증 실패 시 SemIf 폴백, 그것도 실패하면 키워드 폴백으로 계속 분석 | 안 함 |
-| LLM 판정 호출 | `UPSTREAM_FAILED` / 502 | 외부 호출 또는 응답 형식 실패 | 일시적 호출 실패일 때만 검토. 인증·응답 형식 오류는 제외 |
-| 판정 모델 준비 | `MODEL_NOT_READY` / 503 | 판정에 쓸 두 모델의 키가 모두 없거나 비어 있음 | 키 주입 문제를 해결한 뒤, 다음 구간 전에 끝날 때만 검토 |
-| 판정 출력 검증 | `CONGESTION_PARSE_FAILED` / 502 | JSON·값 형식 오류 또는 대상 ID 불일치 | 안 함 |
-| 예상 밖 예외 | `INTERNAL` / 500 | HTTP에서 변환되는 코드. consumer에는 원래 예외가 전달됨. 위 예시처럼 실패 결과로 처리 | 안 함. 로그의 스택 트레이스로 원인 확인 |
+| 요청 검증 | `REQUEST_INVALID` / 422 | consumer에서는 `ValidationError` | 결과 없이 원본 DLT. 요청 수정 필요 |
+| 관련성 선별 | 없음 | Decisions 호출·키 준비·응답 검증 실패 시 SemIf 폴백, 그것도 실패하면 키워드 폴백으로 계속 분석 | 실패 아님. 분석 계속 |
+| LLM 판정 호출 | `UPSTREAM_FAILED` / 502 | 외부 호출 또는 응답 형식 실패 | `FAILED` 결과와 원본 DLT |
+| 판정 모델 준비 | `MODEL_NOT_READY` / 503 | 판정에 쓸 두 모델의 키가 모두 없거나 비어 있음 | `FAILED` 결과와 원본 DLT |
+| 판정 출력 검증 | `CONGESTION_PARSE_FAILED` / 502 | JSON·값 형식 오류 또는 대상 ID 불일치 | `FAILED` 결과와 원본 DLT |
+| 예상 밖 예외 | `INTERNAL` / 500 | HTTP에서 변환되는 코드. consumer에는 원래 예외가 전달됨 | `FAILED` 결과와 원본 DLT. 로그의 스택 트레이스로 원인 확인 |
+| 분석 시간 초과 | 없음(로그 `code=ANALYSIS_FAILED reason=timeout`) | Kafka 분석 전체가 제한(기본 240초)을 넘김. HTTP에는 적용 안 됨 | `FAILED` 결과와 원본 DLT |
 
 관련성 선별 폴백은 `congestion relevance fallback` 경고 로그로 확인한다(`semif=` SemIf 결과, `method=` 실제로 쓴 방식).
 순서는 Decisions → SemIf → 키워드다(아래 "SemIf 선별 폴백").
@@ -226,7 +227,7 @@ OpenAI Decisions가 실패하면 Modal A10에 올린 SemIf(Qwen3.5-4B + 17단계
 - 평소에는 꺼져 있다. 꺼진 상태의 첫 요청은 `SEMIF_WAIT`를 넘겨 키워드로 처리되고, 그동안 컨테이너가 켜진다.
   마지막 요청 뒤 10분이 지나면 다시 꺼진다(`scaledown_window=600`). 과금은 켜져 있는 시간만큼이다.
 - OpenAI 복구 확인 로직은 없다. 스팟마다 Decisions를 먼저 부르므로, 돌아오면 다음 스팟부터 Decisions를 쓴다.
-- Modal 조회가 한 번 실패하면(토큰·배포 문제) 재시작 전까지 SemIf를 쓰지 않는다(`congestion semif lookup failed` 오류 로그).
+- Modal 조회가 실패하면(토큰·배포 문제, 일시 장애) `SEMIF_RETRY_AFTER`(600초) 동안 SemIf를 쓰지 않고 그 뒤 다시 조회한다(`congestion semif lookup failed` 오류 로그, `retry_in=`). `modal` 패키지가 없으면 재시작 전까지 쓰지 않는다.
 - 로그: `congestion semif call done/failed`(후보 수, ms, 실패 이유). 글 내용은 남기지 않는다.
 
 ## Spring BE가 알아야 할 변경

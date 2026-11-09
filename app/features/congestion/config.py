@@ -44,6 +44,9 @@ JUDGE_POLICY = CallPolicy(timeout=60.0, retries=1, concurrency=5)
 DECISIONS_POLICY = CallPolicy(timeout=5.0, retries=1, concurrency=10)
 # SemIf 폴백(semif.py): 원격 결과를 기다리는 상한(초). 켜진 상태 스팟당 0.6~1.6초. 넘기면 키워드로, 원격 호출은 계속 돌아 컨테이너를 데운다. 측정 뒤 조정.
 SEMIF_WAIT = 10.0
+# SemIf 조회(Modal 앱 찾기)에 실패한 뒤 다시 조회할 때까지의 간격(초). 일시 장애 한 번으로 태스크가 살아 있는 내내
+# SemIf가 꺼지지 않게 한다. 조회는 GPU 컨테이너를 켜지 않아 비용이 거의 없다.
+SEMIF_RETRY_AFTER = 600.0
 
 DECISIONS_MAX_QUESTIONS = 400
 

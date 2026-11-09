@@ -2,6 +2,7 @@
 
 import json
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -82,8 +83,9 @@ def test_names_match_deploy_file() -> None:
 async def test_missing_token_skips_without_modal(prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch) -> None:
     for name in semif.TOKEN_ENV:
         monkeypatch.delenv(name, raising=False)
-    with pytest.raises(ModelNotReady):
+    with pytest.raises(semif.SemifUnavailable) as caught:
         await semif.SemifRelevanceScorer()(prepared)
+    assert caught.value.reason == "missing_key"
 
 
 @pytest.mark.asyncio
@@ -114,6 +116,51 @@ async def test_id_mismatch_is_invalid(prepared: PreparedSpot) -> None:
         await semif.SemifRelevanceScorer(remote=remote)(prepared)
 
 
+
+def _fake_modal(monkeypatch: pytest.MonkeyPatch, fails: int, remote: FakeRemote) -> dict[str, int]:
+    """modal.Cls.from_name이 처음 fails번 실패하는 가짜 modal 모듈. 조회 횟수를 센다."""
+    for name in semif.TOKEN_ENV:
+        monkeypatch.setenv(name, "token-value")
+    seen = {"lookups": 0}
+
+    def from_name(app: str, cls: str, client: object) -> SimpleNamespace:
+        seen["lookups"] += 1
+        if seen["lookups"] <= fails:
+            raise RuntimeError("lookup down")
+        return SimpleNamespace(hydrate=lambda c: (lambda: remote))
+
+    fake = SimpleNamespace(
+        Client=SimpleNamespace(from_credentials=lambda token_id, token_secret: object()),
+        Cls=SimpleNamespace(from_name=from_name),
+    )
+    monkeypatch.setitem(sys.modules, "modal", fake)
+    return seen
+
+
+@pytest.mark.asyncio
+async def test_lookup_failure_waits_before_retry(
+    prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    seen = _fake_modal(monkeypatch, fails=1, remote=FakeRemote({"post_1": 0.9, "comment_1": 0.1}))
+    scorer = semif.SemifRelevanceScorer(retry_after=600)
+    for _ in range(2):
+        with pytest.raises(semif.SemifUnavailable) as caught:
+            await scorer(prepared)
+        assert caught.value.reason == "not_ready"
+    assert seen["lookups"] == 1  # 기다리는 동안은 다시 조회하지 않는다
+    assert "congestion semif lookup failed: reason=RuntimeError retry_in=600s" in caplog.text
+    assert "token-value" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_lookup_retries_after_wait(prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen = _fake_modal(monkeypatch, fails=1, remote=FakeRemote({"post_1": 0.9, "comment_1": 0.1}))
+    scorer = semif.SemifRelevanceScorer(retry_after=0)
+    with pytest.raises(ModelNotReady):
+        await scorer(prepared)
+    assert await scorer(prepared) == {("post", 1): 0.9, ("comment", 1): 0.1}
+    assert seen["lookups"] == 2
+
 def _message() -> CongestionAnalysisMessage:
     return CongestionAnalysisMessage.model_validate(
         {"event_id": "semif-test", "schema_version": 1, "window_end": WINDOW_END, **SPOT}
@@ -136,6 +183,8 @@ async def _complete(prompt: str) -> str:
         (lambda: semif.SemifRelevanceScorer(remote=FakeRemote(error=RuntimeError("down"))),
          "keyword", "remote_error", None),
         (lambda: AsyncMock(side_effect=ModelNotReady()), "keyword", "missing_key", None),
+        # 토큰은 있지만 조회 실패 뒤 기다리는 중이면 키 문제와 구분한다.
+        (lambda: AsyncMock(side_effect=semif.SemifUnavailable("not_ready")), "keyword", "not_ready", None),
     ],
 )
 async def test_decisions_then_semif_then_keyword(
