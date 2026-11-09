@@ -2,7 +2,7 @@
 # 모여타 AI(FastAPI) 배포 이미지 — V2 ECS `fastapi` 서비스
 #
 # 빌드:  docker build -t moyeota-ai .
-#        (V3) 로컬 모델: --build-arg EXTRAS=local / Modal: --build-arg EXTRAS=modal
+#        (V3) 로컬 모델: --build-arg EXTRAS=local / Modal SDK는 기본 설치에 포함
 #        서버 모니터링 봇: --build-arg EXTRAS=monitor (CI 기본), 함께 쓸 때는 EXTRAS=monitor,local
 # 실행:  docker run --env-file .env -p 8000:8000 moyeota-ai
 #

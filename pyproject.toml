@@ -14,6 +14,8 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=8.1",
     "aiokafka>=0.12",
     # Modal T4 호출·자동 배포(MODAL_TOKEN_ID_1, MODAL_TOKEN_SECRET_1). env만 넣으면 켜지도록 기본에 둔다.
+    # 혼잡도 SemIf 폴백도 이 패키지를 사용한다(MODAL_TOKEN_ID_2, MODAL_TOKEN_SECRET_2).
+    # GPU 쪽 패키지는 features/congestion/modal_app.py 이미지에 있다.
     # 실행할 때만 불러오므로 키가 없으면 비용이 없다. GPU 쪽 패키지는 llm/modal_app.py 이미지에 있다.
     "modal>=1.0",
     # 태스크 종료 전에 마지막 지표를 OTLP로 보낸다(OTLP_METRICS_ENABLED=true일 때만 동작).
@@ -37,11 +39,6 @@ local = [
     "paddlepaddle>=3.0",
     "torch>=2.13",
     "transformers>=5.16",
-]
-# Modal T4를 부르거나 배포할 때(MODAL_TOKEN_ID_1, MODAL_TOKEN_SECRET_1). GPU 쪽 패키지는 llm/modal_app.py 이미지에 있다.
-# 혼잡도 SemIf 폴백도 같은 extra(MODAL_TOKEN_ID_2, MODAL_TOKEN_SECRET_2). GPU 쪽 패키지는 features/congestion/modal_app.py 이미지에 있다.
-modal = [
-    "modal>=1.0",
 ]
 
 [tool.setuptools.packages.find]

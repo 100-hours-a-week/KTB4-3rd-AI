@@ -1,11 +1,11 @@
 # 혼잡도 분석
 
 원글·댓글을 받아 **검증 → 관련성 선별 → LLM 판정 → 코드 집계·요약**을 수행한다.
-메시지 하나가 스팟 하나다. Spring BE가 이 저장소에서 Python Kafka consumer·producer를
-구현하며, 이 폴더는 Kafka 연결 없이 분석 함수를 제공한다.
+메시지 하나가 스팟 하나다. 이 폴더는 분석 함수와 혼잡도 Kafka 요청 처리기를 제공하며,
+Kafka 연결·발행·커밋은 공통 [worker.py](../../kafka/worker.py)가 맡는다.
 
-실제 Kafka 연결과 공통 이벤트 포장은 [kafka_consumer.py](kafka_consumer.py)와
-[Kafka README](../../kafka/README.md)를 따른다. 아래 예시는 분석 함수의 입출력을 설명한다.
+요청 처리는 [kafka_consumer.py](kafka_consumer.py), 공통 연결 구조는
+[Kafka README](../../kafka/README.md)를 참고한다. 아래 예시는 분석 함수의 입출력을 설명한다.
 
 ## consumer에서 부르는 코드
 
@@ -151,10 +151,10 @@ result = asyncio.run(analyze_message(message, analyzer))
 다른 모델로 다시 묻지 않는다. Claude 키가 없으면 Claude 호출을 건너뛰고 앞 모델의 실패를
 유지한다. 두 모델 모두 키가 없으면 `MODEL_NOT_READY`다.
 
-consumer 재시도는 Spring BE가 결정하되,
-위 표의 두 코드(`UPSTREAM_FAILED`, `MODEL_NOT_READY`)에
-한정하고 다음 구간 전에 끝낼 수 있을 때만 권한다. 코드만으로 일시적 오류를 구분할 수는
-없으므로 같은 요청의 `reason`, `status`, `error` 로그도 확인한다.
+현재 consumer는 분석 오류 코드로 재시도 여부를 나누지 않는다.
+분석 실패·시간 초과는 `FAILED` 결과와 원본 DLT를 발행한다.
+브로커 연결·발행·커밋 실패는 클라이언트를 정리한 뒤 5초 후 다시 연결해,
+커밋한 위치부터 요청을 다시 받는다.
 실패한 구간을 다음 구간 데이터에 합치지 않는다.
 
 설정은 [config.py](config.py)에 있다. Decisions는 `DECISIONS_ENDPOINT`의 `gpt-6-luna`를
@@ -218,7 +218,8 @@ OpenAI Decisions가 실패하면 Modal A10에 올린 SemIf(Qwen3.5-4B + 17단계
 | [modal_app.py](modal_app.py) | Modal 배포 파일. 서버에서 import하지 않는다 |
 | [semif.py](semif.py) | SemIf 입력(학습·평가와 같은 형식) 만들기와 원격 호출 |
 
-- 켜기: `MODAL_TOKEN_ID_2`·`MODAL_TOKEN_SECRET_2`(혼잡도 Modal 계정)를 넣고 `.[modal]`로 설치한다. 없으면 SemIf를 건너뛰고 키워드로 간다(v2 기본).
+- 켜기: `uv sync`로 설치한 뒤 `MODAL_TOKEN_ID_2`·`MODAL_TOKEN_SECRET_2`(혼잡도 Modal 계정)를 넣는다.
+  Modal SDK는 기본 설치에 포함되며, 토큰이 없으면 SemIf를 건너뛰고 키워드로 간다.
 - 배포(`modal_app.py`가 바뀔 때마다):
   `MODAL_TOKEN_ID=$MODAL_TOKEN_ID_2 MODAL_TOKEN_SECRET=$MODAL_TOKEN_SECRET_2 modal deploy -m app.features.congestion.modal_app`
 - 가중치는 그 계정의 볼륨 `semif-train`에 있다(기반 모델 캐시 `/hf`, LoRA `/runs/r2/epoch-2`). 지우지 않는다.
