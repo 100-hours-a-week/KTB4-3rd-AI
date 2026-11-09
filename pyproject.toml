@@ -9,13 +9,28 @@ dependencies = [
     "httpx>=0.28",
     "pillow>=12",
     # 로컬 Qdrant(QdrantClient(path=...)). 서버로 옮기면 url=만 바꾼다.
-    "qdrant-client>=1.19",
+    "qdrant-client==1.20.0",
     # Cloud Prometheus가 수집하는 /metrics(요청량, 에러율, 지연).
     "prometheus-fastapi-instrumentator>=8.1",
     "aiokafka>=0.12",
+    # Modal T4 호출·자동 배포(MODAL_TOKEN_ID_1, MODAL_TOKEN_SECRET_1). env만 넣으면 켜지도록 기본에 둔다.
+    # 실행할 때만 불러오므로 키가 없으면 비용이 없다. GPU 쪽 패키지는 llm/modal_app.py 이미지에 있다.
+    "modal>=1.0",
+    # 태스크 종료 전에 마지막 지표를 OTLP로 보낸다(OTLP_METRICS_ENABLED=true일 때만 동작).
+    "opentelemetry-sdk>=1.41",
+    "opentelemetry-exporter-otlp-proto-http>=1.41",
 ]
 
 [project.optional-dependencies]
+monitor = [
+    "langgraph>=1.2",
+    "langchain-openai>=1.7",
+    "pymysql>=1.1",
+    "DBUtils>=3.1",
+    "boto3>=1.35",
+    "markitdown[pdf,docx]==0.1.8",
+    "discord.py>=2.7",
+]
 # 이 서버에서 OCR과 openjev를 돌릴 때(LOCAL_DEVICE=TRUE). GPU 서버는 paddlepaddle-gpu로 바꾼다.
 local = [
     "paddleocr>=3.7",
@@ -28,3 +43,9 @@ local = [
 modal = [
     "modal>=1.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.Server_Monitor_Bot" = ["config/*.toml", "drills/*.json", "knowledge/*.json", "knowledge/docs/*.md", "knowledge/eval/*.json", "store/*.sql"]

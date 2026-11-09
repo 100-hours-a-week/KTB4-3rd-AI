@@ -2,6 +2,7 @@
 # model_pipe_run은 OCR과 openjev로 요금을 고르고, model_api_run은 luna API로 요금을 읽는다.
 import json
 
+from ...Server_Monitor_Bot.hooks import drill_point
 from ...core.exceptions import JudgeParseError
 from ...core.logging import get_logger
 from ...core.oj_candidates import amount_candidates, amount_value
@@ -24,15 +25,15 @@ SCHEMA = {
 }
 
 
-def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
-    plain = llm("ocr", image=image, device=device)
+async def model_pipe_run(image: ImageBytes, device: str) -> dict[str, int] | None:
+    plain = await llm("ocr", image=image, device=device)
     candidates = amount_candidates(plain)
     if not candidates:
         logger.info("judge fallback: status=review")
         return None
     subject = f"{FIELD}{topic(FIELD)}"
     pairs = [(plain, f"{subject} {candidate}이다") for candidate in candidates]
-    decision = judge_rows(candidates, llm("slm", pairs, device=device))
+    decision = judge_rows(candidates, await llm("slm", pairs, device=device))
     if decision.status != "pass":
         logger.info("judge fallback: status=%s", decision.status)
         return None
@@ -46,8 +47,9 @@ def invalid(field: str, reason: str) -> JudgeParseError:
     return JudgeParseError()
 
 
-def model_api_run(image: ImageBytes) -> dict[str, int]:
-    raw = llm("api_1", PROMPT, image, schema=SCHEMA)
+async def model_api_run(image: ImageBytes) -> dict[str, int]:
+    fake = drill_point("luna_parse")
+    raw = fake.get("raw", "{}") if fake else await llm("api_1", PROMPT, image, schema=SCHEMA)
     try:
         value = json.loads(raw).get("cost")
     except (ValueError, AttributeError) as exc:

@@ -1,4 +1,5 @@
 # 헬스체크, request_id, 실패 로그의 원인·안내가 바로 읽히는지 본다. 네트워크는 쓰지 않는다.
+import asyncio
 import logging
 
 import httpx
@@ -32,10 +33,13 @@ def test_http_reason():
 
 
 def parse_reason(monkeypatch, caplog, module, raw):
-    monkeypatch.setattr(module, "llm", lambda *a, **k: raw)
+    async def llm(*a, **k):
+        return raw
+
+    monkeypatch.setattr(module, "llm", llm)
     with caplog.at_level(logging.INFO, logger="app"):
         try:
-            module.model_api_run(None)
+            asyncio.run(module.model_api_run(None))
         except JudgeParseError:
             return [r.getMessage() for r in caplog.records if "model output is not valid" in r.getMessage()][-1]
     raise AssertionError("expected JudgeParseError")

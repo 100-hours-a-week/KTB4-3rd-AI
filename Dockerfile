@@ -3,6 +3,7 @@
 #
 # 빌드:  docker build -t moyeota-ai .
 #        (V3) 로컬 모델: --build-arg EXTRAS=local / Modal: --build-arg EXTRAS=modal
+#        서버 모니터링 봇: --build-arg EXTRAS=monitor (CI 기본), 함께 쓸 때는 EXTRAS=monitor,local
 # 실행:  docker run --env-file .env -p 8000:8000 moyeota-ai
 #
 # - 런타임 값(OPENAI_API_KEY 등)은 이미지에 넣지 않는다. ECS 태스크가 SSM(/moyeota/v2/<stage>/ai/*)에서 주입한다.
@@ -44,6 +45,9 @@ RUN groupadd --system --gid 10001 app \
 
 WORKDIR /app
 COPY --from=build /opt/venv /opt/venv
+# 서버 모니터링 봇이 RDS에 TLS로 접속할 때 쓰는 AWS 공식 CA 번들 (AI_DB_URL ?ssl=verify)
+RUN mkdir -p /opt/certs
+ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /opt/certs/rds-global-bundle.pem
 COPY --chown=app:app app ./app
 
 USER app

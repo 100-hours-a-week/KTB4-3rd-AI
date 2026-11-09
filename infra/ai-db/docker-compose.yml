@@ -1,0 +1,32 @@
+# 로컬 개발 전용 AI DB(MySQL 8.4 + Qdrant). 서버는 운영 RDS의 AI 전용 DB와 클라우드팀이 운영하는 Qdrant를 쓴다.
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --ngram-token-size=2
+      - --require-secure-transport=ON
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - ../../app/Server_Monitor_Bot/store/schema.sql:/schema/V001__init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - ./qdrant_data:/qdrant/storage
