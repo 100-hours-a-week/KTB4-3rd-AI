@@ -28,6 +28,17 @@ YES = {"id": "yes", "description": "기준에 해당한다"}
 NO = {"id": "no", "description": "기준에 해당하지 않는다"}
 
 
+
+class SemifUnavailable(ModelNotReady):
+    """SemIf를 지금 쓸 수 없음. reason은 선별 폴백 로그의 semif= 값이다.
+
+    missing_key: 토큰이 없음. not_ready: modal 패키지가 없거나, 조회에 실패해 다시 조회할 때를 기다리는 중.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__()
+        self.reason = reason
+
 def semif_rows(prepared: PreparedSpot) -> list[dict[str, Any]]:
     """후보마다 SemIf 입력 한 줄. 모든 줄이 같은 state를 써서 서버가 스팟 글을 한 번만 읽는다(shared).
 
@@ -53,7 +64,7 @@ def semif_rows(prepared: PreparedSpot) -> list[dict[str, Any]]:
 class SemifRelevanceScorer:
     """Modal에 배포한 SemifModel.score를 불러 후보별 관련 확률을 낸다.
 
-    토큰이 없으면(v2 기본) 부르지 않고 ModelNotReady를 낸다. Modal 조회가 실패하면 SEMIF_RETRY_AFTER초 동안 쓰지 않고
+    토큰이 없으면(v2 기본) 부르지 않고 SemifUnavailable(ModelNotReady의 하위 클래스)를 낸다. Modal 조회가 실패하면 SEMIF_RETRY_AFTER초 동안 쓰지 않고
     그 뒤 다시 조회한다. modal 패키지가 없으면 재시작 전까지 쓰지 않는다. 모든 경우 service.py가 키워드로 넘긴다.
     """
 
@@ -70,21 +81,21 @@ class SemifRelevanceScorer:
         if self._remote is not None:
             return self._remote
         if time.monotonic() < self._retry_at:
-            raise ModelNotReady()
+            raise SemifUnavailable("not_ready")
         token_id, token_secret = (os.environ.get(name, "") for name in TOKEN_ENV)
         if not token_id or not token_secret:
-            raise ModelNotReady()
+            raise SemifUnavailable("missing_key")
         async with self._lock:
             if self._remote is None:
                 # 같이 기다리던 요청이 방금 실패한 조회를 곧바로 반복하지 않게 잠금 안에서 다시 본다.
                 if time.monotonic() < self._retry_at:
-                    raise ModelNotReady()
+                    raise SemifUnavailable("not_ready")
                 try:
                     import modal  # type: ignore[import-not-found]
                 except ImportError as exc:
                     log_import_error(logger, "semif", ("modal",), exc)
                     self._retry_at = float("inf")  # 패키지는 재시작 전까지 생기지 않는다
-                    raise ModelNotReady() from exc
+                    raise SemifUnavailable("not_ready") from exc
 
                 def lookup() -> Any:
                     client = modal.Client.from_credentials(token_id, token_secret)
@@ -100,7 +111,7 @@ class SemifRelevanceScorer:
                         type(exc).__name__,
                         int(self._retry_after),
                     )
-                    raise ModelNotReady() from exc
+                    raise SemifUnavailable("not_ready") from exc
         return self._remote
 
     async def __call__(self, prepared: PreparedSpot) -> dict[SignalKey, float | None]:

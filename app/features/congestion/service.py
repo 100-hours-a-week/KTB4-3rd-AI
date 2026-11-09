@@ -31,7 +31,7 @@ from .relevance import (
     classify_by_keywords,
     classify_spot,
 )
-from .semif import SemifRelevanceScorer
+from .semif import SemifRelevanceScorer, SemifUnavailable
 from .spot_extractor import assess_spot
 from .spot_input import build_spot_input
 from .summarizer import summarize_result
@@ -154,7 +154,7 @@ _SEMIF = SemifRelevanceScorer()  # 프로세스에 하나. Modal 조회는 처�
 
 def _failure_reason(exc: Exception) -> str:
     """선별 실패를 로그용 짧은 이유로 바꾼다. 글 내용·키는 담지 않는다."""
-    if isinstance(exc, RelevanceOutputInvalid):
+    if isinstance(exc, (RelevanceOutputInvalid, SemifUnavailable)):
         return exc.reason
     if isinstance(exc, ModelNotReady):
         return "missing_key"

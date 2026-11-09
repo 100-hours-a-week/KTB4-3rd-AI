@@ -83,8 +83,9 @@ def test_names_match_deploy_file() -> None:
 async def test_missing_token_skips_without_modal(prepared: PreparedSpot, monkeypatch: pytest.MonkeyPatch) -> None:
     for name in semif.TOKEN_ENV:
         monkeypatch.delenv(name, raising=False)
-    with pytest.raises(ModelNotReady):
+    with pytest.raises(semif.SemifUnavailable) as caught:
         await semif.SemifRelevanceScorer()(prepared)
+    assert caught.value.reason == "missing_key"
 
 
 @pytest.mark.asyncio
@@ -143,8 +144,9 @@ async def test_lookup_failure_waits_before_retry(
     seen = _fake_modal(monkeypatch, fails=1, remote=FakeRemote({"post_1": 0.9, "comment_1": 0.1}))
     scorer = semif.SemifRelevanceScorer(retry_after=600)
     for _ in range(2):
-        with pytest.raises(ModelNotReady):
+        with pytest.raises(semif.SemifUnavailable) as caught:
             await scorer(prepared)
+        assert caught.value.reason == "not_ready"
     assert seen["lookups"] == 1  # 기다리는 동안은 다시 조회하지 않는다
     assert "congestion semif lookup failed: reason=RuntimeError retry_in=600s" in caplog.text
     assert "token-value" not in caplog.text
@@ -181,6 +183,8 @@ async def _complete(prompt: str) -> str:
         (lambda: semif.SemifRelevanceScorer(remote=FakeRemote(error=RuntimeError("down"))),
          "keyword", "remote_error", None),
         (lambda: AsyncMock(side_effect=ModelNotReady()), "keyword", "missing_key", None),
+        # 토큰은 있지만 조회 실패 뒤 기다리는 중이면 키 문제와 구분한다.
+        (lambda: AsyncMock(side_effect=semif.SemifUnavailable("not_ready")), "keyword", "not_ready", None),
     ],
 )
 async def test_decisions_then_semif_then_keyword(
