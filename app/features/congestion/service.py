@@ -24,7 +24,6 @@ from .models import (
     CongestionResultWithSummary,
 )
 from .preprocessor import prepare_spot
-from .semif import SemifRelevanceScorer
 from .relevance import (
     RelevanceOutputInvalid,
     RelevancePolicy,
@@ -32,6 +31,7 @@ from .relevance import (
     classify_by_keywords,
     classify_spot,
 )
+from .semif import SemifRelevanceScorer
 from .spot_extractor import assess_spot
 from .spot_input import build_spot_input
 from .summarizer import summarize_result
@@ -224,13 +224,17 @@ async def analyze_message(
         return response
     except Exception as exc:
         # 예상 밖 예외는 원인을 찾을 수 있게 스택 트레이스를 함께 남긴다(Kafka 경로에는 HTTP 처리기가 없다).
-        log = logger.warning if isinstance(exc, AppError) else logger.exception
+        if isinstance(exc, AppError):
+            log = logger.error if exc.status_code >= 500 else logger.warning
+        else:
+            log = logger.exception
         log(
-            "congestion analysis failed: spot_id=%s event_id=%s code=%s ms=%s",
+            "congestion analysis failed: spot_id=%s event_id=%s code=%s ms=%s error=%s",
             message.spot_id,
             event_id or "-",
             exc.code if isinstance(exc, AppError) else "INTERNAL",
             int((monotonic() - started) * 1000),
+            type(exc).__name__,
         )
         raise
     finally:

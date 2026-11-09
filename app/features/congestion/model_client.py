@@ -133,7 +133,7 @@ async def _call(
         if not key:
             raise KeyError(endpoint.key_env)
     except KeyError as exc:
-        logger.error(
+        logger.warning(
             "congestion model key is missing: key=%s hint=%s",
             endpoint.key_env,
             endpoint.key_env,
@@ -200,9 +200,11 @@ async def _call(
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
         if isinstance(exc, httpx.HTTPError):
             reason = http_reason(exc)
-        logger.error(
-            "congestion model call failed: api=%s reason=%s status=%s error=%s ms=%s hint=%s",
+        logger.warning(
+            "congestion model call failed: api=%s model=%s "
+            "reason=%s status=%s error=%s ms=%s hint=%s",
             api,
+            endpoint.model,
             reason,
             response.status_code if response is not None else "-",
             error,

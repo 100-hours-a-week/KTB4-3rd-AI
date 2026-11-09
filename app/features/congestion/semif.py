@@ -74,7 +74,7 @@ class SemifRelevanceScorer:
         async with self._lock:
             if self._remote is None:
                 try:
-                    import modal
+                    import modal  # type: ignore[import-not-found]
                 except ImportError as exc:
                     log_import_error(logger, "semif", ("modal",), exc)
                     self._broken = True

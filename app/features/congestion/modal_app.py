@@ -4,7 +4,7 @@
 # 가중치: 기반 모델은 볼륨의 HF 캐시(/vol/hf), LoRA는 17단계 학습 결과 runs/r2/epoch-2(같은 볼륨). 지우지 않는다.
 # 서버 쪽 호출은 semif.py. APP·CLS 이름은 두 파일이 같아야 한다.
 # 이 파일은 서버 이미지에서 import하지 않는다(GPU 패키지는 아래 Modal 이미지에만 있다).
-import modal
+import modal  # type: ignore[import-not-found]
 
 APP = "congestion-semif"
 CLS = "SemifModel"
@@ -45,8 +45,9 @@ WARMUP = [
 class SemifModel:
     @modal.enter()
     def start(self) -> None:
-        from peft import PeftModel
-        from semif_phase1.core import load_causal_model
+        # 원격 GPU 이미지에만 설치되는 패키지라 서버의 로컬 타입 검사에서는 제외한다.
+        from peft import PeftModel  # type: ignore[import-not-found]
+        from semif_phase1.core import load_causal_model  # type: ignore[import-not-found]
 
         base, self.tokenizer, self.metadata = load_causal_model(MODEL, REVISION, "cuda", "bfloat16")
         self.model = PeftModel.from_pretrained(base, LORA)
@@ -54,7 +55,7 @@ class SemifModel:
         self._score(WARMUP)  # 선형 어텐션 커널의 첫 컴파일(약 40초)을 요청 전에 끝낸다
 
     def _score(self, rows: list[dict]) -> dict[str, float]:
-        from semif_phase1.shared import score_shared
+        from semif_phase1.shared import score_shared  # type: ignore[import-not-found]
 
         results, _ = score_shared(self.model, self.tokenizer, rows, self.metadata, 8192)
         return {r["id"]: r["probabilities"][r["option_ids"].index("yes")] for r in results}

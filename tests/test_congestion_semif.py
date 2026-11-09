@@ -12,7 +12,10 @@ import pytest
 from app.core.exceptions import ModelNotReady, UpstreamError
 from app.features.congestion import semif
 from app.features.congestion.decisions import INSTRUCTIONS
-from app.features.congestion.models import CongestionAnalysisMessage, CongestionSpotInput
+from app.features.congestion.models import (
+    CongestionAnalysisMessage,
+    CongestionSpotInput,
+)
 from app.features.congestion.preprocessor import PreparedSpot, prepare_spot
 from app.features.congestion.relevance import RelevanceOutputInvalid, RelevancePolicy
 
@@ -70,8 +73,8 @@ def test_rows_match_training_format(prepared: PreparedSpot) -> None:
 
 def test_names_match_deploy_file() -> None:
     text = (Path(semif.__file__).parent / "modal_app.py").read_text(encoding="utf-8")
-    assert re.search(r'^APP = "(.+)"$', text, re.M).group(1) == semif.APP
-    assert re.search(r'^CLS = "(.+)"$', text, re.M).group(1) == semif.CLS
+    assert re.search(r'^APP = "(.+)"$', text, re.MULTILINE).group(1) == semif.APP
+    assert re.search(r'^CLS = "(.+)"$', text, re.MULTILINE).group(1) == semif.CLS
     assert f"class {semif.CLS}:" in text
 
 

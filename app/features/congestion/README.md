@@ -4,6 +4,9 @@
 메시지 하나가 스팟 하나다. Spring BE가 이 저장소에서 Python Kafka consumer·producer를
 구현하며, 이 폴더는 Kafka 연결 없이 분석 함수를 제공한다.
 
+실제 Kafka 연결과 공통 이벤트 포장은 [kafka_consumer.py](kafka_consumer.py)와
+[Kafka README](../../kafka/README.md)를 따른다. 아래 예시는 분석 함수의 입출력을 설명한다.
+
 ## consumer에서 부르는 코드
 
 저장소 루트에서 `uv sync`로 의존성을 설치한다.
@@ -226,6 +229,17 @@ OpenAI Decisions가 실패하면 Modal A10에 올린 SemIf(Qwen3.5-4B + 17단계
 - 로그: `congestion semif call done/failed`(후보 수, ms, 실패 이유). 글 내용은 남기지 않는다.
 
 ## Spring BE가 알아야 할 변경
+
+### 2026-11-06
+
+- 분석 함수 인자·요청·결과 형식은 바꾸지 않았다. 분석·모델 호출 로그만 보완했다.
+- 시간 초과는 ERROR `congestion analysis failed: … code=ANALYSIS_FAILED reason=timeout ms=…`를 한 번 남기고 기존 FAILED 결과·DLT 처리를 유지한다.
+- 외부 취소는 WARNING `congestion analysis cancelled: spot_id=… event_id=… ms=…`를 남기고 다시 전달한다. `code`·`reason` 없이 요청 끝·실패 집계에서 제외한다. 실패 결과를 만들거나 커밋으로 진행하지 않는다.
+- `congestion model call failed`는 `api` 바로 뒤에 `model=…`를 남겨 실패한 모델을 구분한다.
+- 분석 함수의 `congestion analysis failed`는 `ms` 뒤에 `error=<예외 클래스 이름>`을 남긴다.
+- 최종 분석의 5xx는 ERROR, 4xx는 WARNING이다. 모델 호출 실패·키 없음은 복구 가능하므로 WARNING으로 남기고, 최종 실패 여부는 analysis done/failed로 판단한다. SemIf의 지속되는 조회 실패는 ERROR를 유지한다.
+- 로그용 ID는 trace_id → 안전한 event_id → 임의 ID 순서다. 안전하지 않은 event_id도 시작·종료 로그의 request_id는 같다.
+- PR #11의 동시 처리와 60분 지난 요청 자동 FAILED 정책은 사용자 동의 완료다.
 
 ### 2026-11-05
 

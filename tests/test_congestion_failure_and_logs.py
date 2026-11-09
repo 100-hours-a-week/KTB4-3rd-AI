@@ -1,6 +1,7 @@
 """관련성 선별 폴백·판정 실패와 요청 안팎의 분석 로그를 검증한다."""
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -147,7 +148,10 @@ def test_stage_http_outcome_and_reason(
     else:
         assert len(failed) == 1
         assert f"code={code}" in failed[0]
+        assert "error=CongestionParseFailed" in failed[0]
         assert failed[0].endswith(" request_id=http-test")
+        assert all(r.levelno == logging.ERROR for r in caplog.records
+                   if r.getMessage().startswith("congestion analysis failed:"))
 
 
 @pytest.mark.parametrize(
@@ -222,6 +226,7 @@ async def test_analysis_logs_and_request_context(
         assert "author_key" not in log and "private" not in log
     if mode == "failure":
         assert "code=INTERNAL" in logs[-1]
+        assert "error=RuntimeError" in logs[-1]
     else:
         assert logs[-1].startswith("congestion analysis done:")
         assert any(log.startswith("congestion aggregate done:") for log in logs)

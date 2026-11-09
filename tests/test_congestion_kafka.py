@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import logging
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -28,7 +30,11 @@ class FailingAnalyzer:
 
 
 class SlowAnalyzer:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+
     async def analyze(self, message: CongestionAnalysisMessage) -> CongestionResult:
+        self.started.set()
         await asyncio.sleep(1)
         raise AssertionError("시간 제한을 넘기면 결과를 기다리지 않는다")
 
@@ -103,7 +109,9 @@ async def test_success_result_is_wrapped_in_envelope_with_spot_key() -> None:
 
 
 @pytest.mark.asyncio
-async def test_analysis_failure_publishes_failed_result_and_keeps_original_in_dlt() -> None:
+async def test_analysis_failure_publishes_failed_result_and_keeps_original_in_dlt(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     message = record()
 
     outputs = await handler(FailingAnalyzer())(message)
@@ -115,15 +123,53 @@ async def test_analysis_failure_publishes_failed_result_and_keeps_original_in_dl
     assert dead.topic == REQUEST_TOPIC + "-dlt"
     assert dead.value == message.value
     assert dict(dead.headers)["error_reason"] == b"analysis_failed"
+    failed = [r for r in caplog.records
+              if r.getMessage().startswith("congestion analysis failed:")]
+    assert len(failed) == 1
+    assert failed[0].levelno == logging.ERROR
 
 
 @pytest.mark.asyncio
-async def test_analysis_over_time_limit_publishes_failed_result() -> None:
-    outputs = await handler(SlowAnalyzer(), timeout=0.05)(record())
+async def test_analysis_over_time_limit_publishes_failed_result(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    outputs = await handler(SlowAnalyzer(), timeout=0.05)(
+        record(headers=(("trace_id", b"timeout-trace"),))
+    )
 
     result, dead = outputs
     assert body(result)["data"]["analysis_status"] == "FAILED"
     assert dict(dead.headers)["error_reason"] == b"analysis_timeout"
+    failed = [r for r in caplog.records
+              if r.getMessage().startswith("congestion analysis failed:")]
+    assert len(failed) == 1
+    assert failed[0].levelno == logging.ERROR
+    assert re.search(r"code=ANALYSIS_FAILED reason=timeout ms=\d+", failed[0].getMessage())
+    assert failed[0].getMessage().endswith(" request_id=timeout-trace")
+
+
+@pytest.mark.asyncio
+async def test_external_cancellation_is_logged_and_propagated(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    analyzer = SlowAnalyzer()
+    task = asyncio.create_task(handler(analyzer)(record(headers=(("trace_id", b"stop-trace"),))))
+    await asyncio.wait_for(analyzer.started.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert task.cancelled()
+    failed = [r for r in caplog.records
+              if r.getMessage().startswith("congestion analysis failed:")]
+    assert failed == []
+    cancelled = [r for r in caplog.records
+                 if r.getMessage().startswith("congestion analysis cancelled:")]
+    assert len(cancelled) == 1
+    assert cancelled[0].levelno == logging.WARNING
+    assert re.search(r"spot_id=101 event_id=\S+ ms=\d+", cancelled[0].getMessage())
+    assert "code=" not in cancelled[0].getMessage()
+    assert "reason=" not in cancelled[0].getMessage()
+    assert cancelled[0].getMessage().endswith(" request_id=stop-trace")
 
 
 @pytest.mark.asyncio
@@ -162,3 +208,20 @@ async def test_unreadable_request_goes_to_dlt_without_result(message: ConsumerRe
         await handler()(message)
 
     assert exc.value.reason == reason
+
+
+@pytest.mark.asyncio
+async def test_timeout_keeps_request_context_for_unsafe_event_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    raw = json.loads(record().value)
+    raw["event_id"] = "bad\nevent"
+    await handler(SlowAnalyzer(), timeout=0.01)(record(value=json.dumps(raw).encode()))
+    logs = [r.getMessage() for r in caplog.records
+            if r.getMessage().startswith(("congestion analysis started:",
+                                          "congestion analysis failed:"))]
+    assert len(logs) == 2
+    ids = [re.search(r" request_id=([0-9a-f]{12})$", line) for line in logs]
+    assert all(ids)
+    assert ids[0].group(1) == ids[1].group(1)
+    assert all("event_id=-" in line and "\n" not in line for line in logs)

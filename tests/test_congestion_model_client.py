@@ -130,6 +130,9 @@ async def test_http_failure_obeys_retry_policy(
     if failure == "retry_timeout":
         assert "reason=timeout status=- error=-" in caplog.text
     assert caplog.text.count("congestion model call failed:") == 1
+    assert "congestion model call failed: api=responses model=gpt-6-luna reason=" in caplog.text
+    assert all(r.levelno == logging.WARNING for r in caplog.records
+               if r.getMessage().startswith("congestion model call failed:"))
     assert "hint=OPENAI_API_KEY_2" in caplog.text
     assert "비밀본문" not in caplog.text
     assert "bad\n value" not in caplog.text
@@ -147,6 +150,8 @@ async def test_missing_key_stops_before_network(
     with pytest.raises(ModelNotReady):
         await model_client.complete_json("prompt", transport=httpx.MockTransport(unexpected))
     assert "congestion model key is missing: key=OPENAI_API_KEY_2" in caplog.text
+    assert all(r.levelno == logging.WARNING for r in caplog.records
+               if r.getMessage().startswith("congestion model key is missing:"))
 
 
 @pytest.mark.parametrize(
@@ -364,7 +369,7 @@ async def test_judge_4xx_does_not_fallback(monkeypatch: pytest.MonkeyPatch, stat
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stop_reason", ["max_tokens", "refusal", "server_error", "missing_key"])
 async def test_judge_both_fail_or_preserve_previous_failure(
-    monkeypatch: pytest.MonkeyPatch, stop_reason: str,
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, stop_reason: str,
 ) -> None:
     if stop_reason != "missing_key":
         monkeypatch.setenv("ANTHROPIC_API_KEY", "claude-secret")
@@ -380,6 +385,12 @@ async def test_judge_both_fail_or_preserve_previous_failure(
 
     with pytest.raises(UpstreamError) as caught:
         await model_client.complete_json("prompt", transport=httpx.MockTransport(respond))
+    failed = [r.getMessage() for r in caplog.records
+              if r.getMessage().startswith("congestion model call failed:")]
+    assert len(failed) == (1 if stop_reason == "missing_key" else 2)
+    assert "api=responses model=gpt-6-luna reason=" in failed[0]
+    if stop_reason != "missing_key":
+        assert "api=responses model=claude-haiku-5-5 reason=" in failed[1]
     cause = caught.value.__cause__
     if stop_reason == "missing_key":
         assert cause.response.status_code == 503

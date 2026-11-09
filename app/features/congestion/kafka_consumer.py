@@ -2,15 +2,21 @@ import asyncio
 import os
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
+from time import monotonic
+from uuid import uuid4
 
-from aiokafka import ConsumerRecord
+from aiokafka import ConsumerRecord  # type: ignore[import-untyped]
 from pydantic import ValidationError
 
 from ...core.logging import SAFE_ID, get_logger, request_id
 from ...kafka.config import KafkaSettings
 from ...kafka.envelope import InvalidMessage, read_envelope, write_envelope
 from ...kafka.worker import KafkaWorker, OutgoingRecord, dead_letter
-from .models import CongestionAnalysisFailure, CongestionAnalysisMessage, CongestionAnalysisSuccess
+from .models import (
+    CongestionAnalysisFailure,
+    CongestionAnalysisMessage,
+    CongestionAnalysisSuccess,
+)
 from .service import CongestionAnalyzer, analyze_message, failure_result, get_analyzer
 
 logger = get_logger(__name__)
@@ -50,7 +56,7 @@ class CongestionRequestHandler:
         if envelope.schema_version != SCHEMA_VERSION:
             raise InvalidMessage("unsupported_schema_version")
         trace_id = _trace_id(record)
-        token = request_id.set(trace_id or _safe(envelope.event_id))
+        token = request_id.set(trace_id or _safe(envelope.event_id) or uuid4().hex[:12])
         try:
             message = _message(envelope.data, envelope.event_id, envelope.schema_version)
             outputs: list[OutgoingRecord] = []
@@ -63,17 +69,28 @@ class CongestionRequestHandler:
                 )
                 result: CongestionAnalysisSuccess | CongestionAnalysisFailure = failure_result(message)
             else:
+                started = monotonic()
                 try:
                     result = await asyncio.wait_for(analyze_message(message, self.analyzer), self.timeout)
-                except asyncio.TimeoutError:
-                    logger.error(
-                        "congestion analysis timed out: spot_id=%s timeout=%ss",
+                except asyncio.CancelledError:
+                    logger.warning(
+                        "congestion analysis cancelled: spot_id=%s event_id=%s ms=%s",
                         message.spot_id,
-                        self.timeout,
+                        _safe(message.event_id) or "-",
+                        int((monotonic() - started) * 1000),
+                    )
+                    raise
+                except TimeoutError:
+                    logger.error(
+                        "congestion analysis failed: spot_id=%s event_id=%s "
+                        "code=ANALYSIS_FAILED reason=timeout ms=%s",
+                        message.spot_id,
+                        _safe(message.event_id) or "-",
+                        int((monotonic() - started) * 1000),
                     )
                     result = failure_result(message)
                     outputs.append(dead_letter(record, "analysis_timeout"))
-                except Exception:
+                except Exception:  # noqa: BLE001 - 예상 밖 분석 실패도 결과와 DLT로 남긴다.
                     result = failure_result(message)
                     outputs.append(dead_letter(record, "analysis_failed"))
             return [_result_record(result, trace_id), *outputs]
