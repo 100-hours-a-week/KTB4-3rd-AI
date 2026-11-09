@@ -5,6 +5,7 @@
 # 422 IMAGE_SIZE_INVALID   비었거나 5MB 초과
 # 422 IMAGE_TYPE_INVALID   jpeg, png가 아님
 # 422 JUDGE_PARSE_FAILED   모델 출력이 JSON이 아니거나 필요한 값이 없음. 영수증이 이체 완료가 아닐 때도 여기로 온다
+# 502 CONGESTION_PARSE_FAILED 판정 출력 검증 실패
 # 502 UPSTREAM_FAILED      OpenAI 호출 실패 또는 응답 형식이 다름
 # 503 MODEL_NOT_READY      키, 가중치, 패키지가 없음. api, ocr, open, modal 중 어디인지는 로그에만 남긴다. 서버 종료 중 받은 요청도 여기로 온다
 # 504 QUEUE_TIMEOUT        내부 큐 대기와 실행을 합쳐 상한(60초)을 넘김
@@ -13,6 +14,7 @@
 
 # 오류 응답 로그(request failed)에 붙는 확인 안내. 같은 request_id의 앞선 로그에 구체 원인이 있다.
 HINTS = {
+    "CONGESTION_PARSE_FAILED": "판정 모델 출력 오류. 같은 request_id의 judge invalid reason과 model 확인",
     "REQUEST_INVALID": "요청 JSON에 문자열 image_URL이 있는지 확인",
     "IMAGE_FETCH_FAILED": "image_URL이 5초 안에 리다이렉트 없이 200을 주는지 확인(presigned 만료, 권한, 주소)",
     "IMAGE_SIZE_INVALID": "이미지가 1바이트 이상 5MB 이하인지 확인",
@@ -76,3 +78,8 @@ class QueueTimeout(AppError):
 class InternalError(AppError):
     def __init__(self, message: str = "internal error") -> None:
         super().__init__("INTERNAL", message, 500)
+
+
+class CongestionParseFailed(AppError):
+    def __init__(self, message: str = "congestion model output is not valid") -> None:
+        super().__init__("CONGESTION_PARSE_FAILED", message, 502)

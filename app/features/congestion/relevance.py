@@ -1,0 +1,109 @@
+"""혼잡 관련성 확률을 검증하고 무관한 후보만 제외한다."""
+
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
+from math import isfinite
+from typing import Literal
+
+from .preprocessor import CandidateSignal, PreparedSpot
+
+SignalKey = tuple[Literal["post", "comment"], int]
+RelevanceStatus = Literal["RELATED", "UNRELATED", "UNCERTAIN"]
+RelevanceScorer = Callable[[PreparedSpot], Awaitable[Mapping[SignalKey, float | None]]]
+
+
+class RelevanceOutputInvalid(ValueError):
+    """관련성 응답의 대상 ID나 확률이 올바르지 않다."""
+
+    def __init__(self, message: str, *, reason: str = "not_json") -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+def _valid_probability(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and 0 <= value <= 1
+        and isfinite(value)
+    )
+
+
+@dataclass(frozen=True)
+class RelevancePolicy:
+    """평가로 정할 임계값을 명시적으로 받으며 기본값을 두지 않는다."""
+
+    exclude_below: float
+    related_at_or_above: float
+
+    def __post_init__(self) -> None:
+        if (
+            not _valid_probability(self.exclude_below)
+            or not _valid_probability(self.related_at_or_above)
+            or self.exclude_below >= self.related_at_or_above
+        ):
+            raise ValueError("relevance thresholds must satisfy 0 <= lower < upper <= 1")
+
+
+@dataclass(frozen=True)
+class RelevanceDecision:
+    candidate: CandidateSignal
+    probability: float | None
+    status: RelevanceStatus
+
+
+@dataclass(frozen=True)
+class ClassifiedSpot:
+    prepared: PreparedSpot
+    decisions: tuple[RelevanceDecision, ...]
+
+    @property
+    def selected_candidates(self) -> tuple[CandidateSignal, ...]:
+        """관련성이 불확실한 후보도 후속 개별 판정을 받을 수 있도록 남긴다."""
+        return tuple(item.candidate for item in self.decisions if item.status != "UNRELATED")
+
+
+async def classify_spot(
+    prepared: PreparedSpot, score: RelevanceScorer, policy: RelevancePolicy
+) -> ClassifiedSpot:
+    """완전한 확률 응답을 확인한 뒤 요청 순서대로 후보를 선별한다."""
+    if not prepared.candidates:
+        return ClassifiedSpot(prepared=prepared, decisions=())
+
+    scores = await score(prepared)
+    expected = {(item.signal_type, item.signal_id) for item in prepared.candidates}
+    if set(scores) != expected:
+        raise RelevanceOutputInvalid(
+            "relevance score IDs do not match candidates", reason="id_mismatch"
+        )
+
+    decisions: list[RelevanceDecision] = []
+    for candidate in prepared.candidates:
+        probability = scores[(candidate.signal_type, candidate.signal_id)]
+        if probability is not None and not _valid_probability(probability):
+            raise RelevanceOutputInvalid(
+                "relevance probability is invalid", reason="bad_probability"
+            )
+        status: RelevanceStatus
+        if probability is None:
+            status = "UNCERTAIN"
+        elif probability < policy.exclude_below:
+            status = "UNRELATED"
+        elif probability >= policy.related_at_or_above:
+            status = "RELATED"
+        else:
+            status = "UNCERTAIN"
+        decisions.append(RelevanceDecision(candidate, probability, status))
+    return ClassifiedSpot(prepared=prepared, decisions=tuple(decisions))
+
+
+def classify_by_keywords(prepared: PreparedSpot, keywords: tuple[str, ...]) -> ClassifiedSpot:
+    """후보의 제목·본문에서 공백을 지우고 키워드가 하나라도 있는지 확인한다."""
+    decisions: list[RelevanceDecision] = []
+    for candidate in prepared.candidates:
+        text = "".join(((candidate.title or "") + candidate.content).split())
+        status: RelevanceStatus = (
+            "RELATED" if any(keyword in text for keyword in keywords) else "UNRELATED"
+        )
+        decisions.append(RelevanceDecision(candidate, None, status))
+    return ClassifiedSpot(prepared=prepared, decisions=tuple(decisions))

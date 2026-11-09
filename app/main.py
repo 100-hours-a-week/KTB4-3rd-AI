@@ -16,6 +16,7 @@ from .core.telemetry import RequestMetrics, build_meter_provider
 from .features.receipt import main as receipt
 from .features.taxi_meter import main as taxi_meter
 from .inner_queue import TOTAL, Scheduler
+from .kafka.config import kafka_settings
 from .llm import load, prepare_modal
 
 logger = get_logger(__name__)
@@ -50,8 +51,21 @@ async def lifespan(app: FastAPI):
         prepare = asyncio.create_task(prepare_modal())
     elif DEVICE in LOCAL_DEVICES:
         prepare = asyncio.create_task(asyncio.to_thread(preload, DEVICE))
+    app.state.kafka_workers = []
+    settings = kafka_settings()
+    if settings is not None:
+        from .features.congestion.kafka_consumer import create_worker
+
+        app.state.kafka_workers.append(create_worker(settings))
+    for worker in app.state.kafka_workers:
+        worker.start()
+
     yield
-    await scheduler.stop(50)  # --timeout-graceful-shutdown 50과 맞춘다
+    # 이미지 큐와 Kafka를 함께 멈춰 종료 대기가 누적되지 않게 한다.
+    await asyncio.gather(
+        scheduler.stop(50),
+        *(worker.stop() for worker in app.state.kafka_workers),
+    )
     if prepare is not None:
         prepare.cancel()
     monitor.stop()
@@ -91,7 +105,26 @@ app.middleware("http")(request_context)
 
 def error(request, exc: AppError) -> JSONResponse:
     log = logger.error if exc.status_code >= 500 else logger.warning
-    log("request failed: path=%s status=%s code=%s hint=%s", request.url.path, exc.status_code, exc.code, HINTS.get(exc.code, "-"))
+    hint = HINTS.get(exc.code, "-")
+    if request.url.path == "/congestion-analyses":
+        hint = {
+            "REQUEST_INVALID": (
+                "혼잡도 요청의 필수 필드·자료형·길이와 같은 request_id의 "
+                "request is invalid 로그의 fields 확인"
+            ),
+            "MODEL_NOT_READY": (
+                "혼잡도 판정 키 설정 확인. 같은 request_id의 "
+                "congestion model key is missing 로그의 hint 확인"
+            ),
+            "UPSTREAM_FAILED": (
+                "혼잡도 모델 호출 실패. 같은 request_id의 "
+                "congestion model call failed 로그의 model·reason·status 확인"
+            ),
+        }.get(exc.code, hint)
+    log(
+        "request failed: path=%s status=%s code=%s hint=%s",
+        request.url.path, exc.status_code, exc.code, hint,
+    )
     body = {"success": False, "code": exc.code, "message": exc.message}
     return JSONResponse(body, status_code=exc.status_code)
 
