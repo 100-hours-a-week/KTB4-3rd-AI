@@ -12,7 +12,7 @@ from typing import Any
 
 from ...core.exceptions import ModelNotReady, UpstreamError
 from ...core.logging import get_logger, log_import_error
-from .config import SEMIF_WAIT
+from .config import SEMIF_RETRY_AFTER, SEMIF_WAIT
 from .decisions import INSTRUCTIONS
 from .preprocessor import PreparedSpot
 from .relevance import RelevanceOutputInvalid, SignalKey
@@ -53,31 +53,37 @@ def semif_rows(prepared: PreparedSpot) -> list[dict[str, Any]]:
 class SemifRelevanceScorer:
     """Modal에 배포한 SemifModel.score를 불러 후보별 관련 확률을 낸다.
 
-    토큰이 없으면(v2 기본) 부르지 않고 ModelNotReady를 낸다. Modal 조회가 한 번 실패하면 재시작 전까지 쓰지 않는다
-    (이미지 기능과 같은 규칙). 두 경우 모두 service.py가 키워드로 넘긴다.
+    토큰이 없으면(v2 기본) 부르지 않고 ModelNotReady를 낸다. Modal 조회가 실패하면 SEMIF_RETRY_AFTER초 동안 쓰지 않고
+    그 뒤 다시 조회한다. modal 패키지가 없으면 재시작 전까지 쓰지 않는다. 모든 경우 service.py가 키워드로 넘긴다.
     """
 
-    def __init__(self, *, remote: Any = None, wait: float = SEMIF_WAIT) -> None:
+    def __init__(
+        self, *, remote: Any = None, wait: float = SEMIF_WAIT, retry_after: float = SEMIF_RETRY_AFTER
+    ) -> None:
         self._remote = remote
         self._wait = wait
-        self._broken = False
+        self._retry_after = retry_after
+        self._retry_at = 0.0  # 이 시각(monotonic) 전에는 조회하지 않는다
         self._lock = asyncio.Lock()
 
     async def _load(self) -> Any:
         if self._remote is not None:
             return self._remote
-        if self._broken:
+        if time.monotonic() < self._retry_at:
             raise ModelNotReady()
         token_id, token_secret = (os.environ.get(name, "") for name in TOKEN_ENV)
         if not token_id or not token_secret:
             raise ModelNotReady()
         async with self._lock:
             if self._remote is None:
+                # 같이 기다리던 요청이 방금 실패한 조회를 곧바로 반복하지 않게 잠금 안에서 다시 본다.
+                if time.monotonic() < self._retry_at:
+                    raise ModelNotReady()
                 try:
                     import modal  # type: ignore[import-not-found]
                 except ImportError as exc:
                     log_import_error(logger, "semif", ("modal",), exc)
-                    self._broken = True
+                    self._retry_at = float("inf")  # 패키지는 재시작 전까지 생기지 않는다
                     raise ModelNotReady() from exc
 
                 def lookup() -> Any:
@@ -87,11 +93,12 @@ class SemifRelevanceScorer:
                 try:
                     self._remote = await asyncio.to_thread(lookup)
                 except Exception as exc:
-                    self._broken = True
+                    self._retry_at = time.monotonic() + self._retry_after
                     logger.error(
-                        "congestion semif lookup failed: reason=%s hint=MODAL_TOKEN_ID_2·MODAL_TOKEN_SECRET_2 "
+                        "congestion semif lookup failed: reason=%s retry_in=%ss hint=MODAL_TOKEN_ID_2·MODAL_TOKEN_SECRET_2 "
                         "값과 그 계정으로 modal deploy -m app.features.congestion.modal_app 했는지 확인",
                         type(exc).__name__,
+                        int(self._retry_after),
                     )
                     raise ModelNotReady() from exc
         return self._remote

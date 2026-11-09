@@ -227,7 +227,7 @@ OpenAI Decisions가 실패하면 Modal A10에 올린 SemIf(Qwen3.5-4B + 17단계
 - 평소에는 꺼져 있다. 꺼진 상태의 첫 요청은 `SEMIF_WAIT`를 넘겨 키워드로 처리되고, 그동안 컨테이너가 켜진다.
   마지막 요청 뒤 10분이 지나면 다시 꺼진다(`scaledown_window=600`). 과금은 켜져 있는 시간만큼이다.
 - OpenAI 복구 확인 로직은 없다. 스팟마다 Decisions를 먼저 부르므로, 돌아오면 다음 스팟부터 Decisions를 쓴다.
-- Modal 조회가 한 번 실패하면(토큰·배포 문제) 재시작 전까지 SemIf를 쓰지 않는다(`congestion semif lookup failed` 오류 로그).
+- Modal 조회가 실패하면(토큰·배포 문제, 일시 장애) `SEMIF_RETRY_AFTER`(600초) 동안 SemIf를 쓰지 않고 그 뒤 다시 조회한다(`congestion semif lookup failed` 오류 로그, `retry_in=`). `modal` 패키지가 없으면 재시작 전까지 쓰지 않는다.
 - 로그: `congestion semif call done/failed`(후보 수, ms, 실패 이유). 글 내용은 남기지 않는다.
 
 ## Spring BE가 알아야 할 변경
