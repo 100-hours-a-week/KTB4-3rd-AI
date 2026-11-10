@@ -1,4 +1,4 @@
-# P7 텔레그램 수신(리더만): 관리자·팀원의 메시지·답장·명령·버튼과 관리자의 문서 파일을 이벤트로 바꾸고, 미등록 사용자는 /join만 받는다.
+# P7 텔레그램 수신(리더만): 관리자·팀원의 메시지·답장·명령·버튼과 관리자의 문서 파일을 이벤트로 바꾸고, 미등록 사용자는 /join만 받는다. 디스코드 글은 /chat <질문>이나 봇 메시지에 단 답장만 질문으로 받는다.
 import logging
 import threading
 import time
@@ -46,8 +46,11 @@ def to_event(update: dict, role=lambda user_id: None, ref_of=lambda chat_id, mes
                                                "file_size": doc.get("file_size")}, source="telegram", from_id=user, chat_id=chat, event_id=eid)
     if not text or not role(user):
         return None
-    if text.startswith("/"):
-        cmd, _, rest = text.partition(" ")
+    cmd, _, rest = text.partition(" ")
+    asked = cmd.split("@")[0].lower() == "/chat" and bool(rest.strip())
+    if asked:
+        text = rest.strip()
+    elif text.startswith("/"):
         cmd = cmd.split("@")[0].lower()
         rest = rest.strip()
         if cmd == "/trace":
@@ -62,6 +65,8 @@ def to_event(update: dict, role=lambda user_id: None, ref_of=lambda chat_id, mes
         return new_event("action.help", base, source="telegram", from_id=user, chat_id=chat, event_id=eid)
     reply_to = (msg.get("reply_to_message") or {}).get("message_id")
     ref = ref_of(chat, reply_to) if reply_to else None
+    if msg.get("discord") and not asked and not ref:
+        return None
     return new_event("user.message", {**base, "text": text[:4000], "reply_to_message_id": reply_to,
                                       "reply_ref": f"{ref[0]}:{ref[1]}" if ref else None},
                      source="telegram", from_id=user, chat_id=chat, event_id=eid)

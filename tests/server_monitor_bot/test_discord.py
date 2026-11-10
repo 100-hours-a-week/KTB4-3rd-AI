@@ -145,3 +145,19 @@ def test_discord_updates_become_events():
     button = to_event(button_update(8, CHANNEL, 99, 42, "주인", "ks:D-1~2"), role, ref)
     assert (button["type"], button["payload"]["draft_id"], button["payload"]["callback_id"]) == ("action.knowledge_save", "D-1", "dc:8")
     assert to_event(message_update(9, CHANNEL, 7, "남", None, "/status"), role, ref) is None
+
+
+def test_discord_questions_need_chat_or_reply():
+    role = lambda uid: "member"
+    ref = lambda chat, mid: ("answer", "77") if (chat, mid) == (CHANNEL, 99) else None
+    ask = lambda text, reply_to=None: to_event(message_update(10, CHANNEL, 7, "팀원", None, text, reply_to=reply_to), role, ref)
+    chat = ask("/chat  최근 오류 있어? ")
+    assert chat["type"] == "user.message" and chat["payload"]["text"] == "최근 오류 있어?" and chat["payload"]["reply_ref"] is None
+    assert ask("/CHAT@bot /status는 뭐야?")["payload"]["text"] == "/status는 뭐야?"
+    assert ask("다들 점심 뭐 먹어?") is None and ask("원인이 뭐야?", reply_to=55) is None
+    reply = ask("이건 왜 그래?", reply_to=99)
+    assert reply["type"] == "user.message" and reply["payload"]["reply_ref"] == "answer:77" and reply["payload"]["text"] == "이건 왜 그래?"
+    assert ask("/chat")["type"] == "action.help" and ask("/chat   ")["type"] == "action.help" and ask("/status")["type"] == "action.status"
+    assert ask("/chatty 안녕")["type"] == "action.help"
+    tg = lambda text: to_event({"message": {"message_id": 3, "from": {"id": 7}, "chat": {"id": 7}, "text": text}}, role, ref)
+    assert tg("최근 오류 있어?")["payload"]["text"] == "최근 오류 있어?" and tg("/chat 최근 오류 있어?")["payload"]["text"] == "최근 오류 있어?"
