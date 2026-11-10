@@ -1,4 +1,4 @@
-# 조립 쓰레드: 로그 줄을 request_id별로 묶어 'request done'(HTTP) 또는 혼잡도 분석 끝 로그(Kafka consumer, 5초 뒤)에서 request_result를 확정하고 SQLite 버퍼에 쓴다.
+# 조립 쓰레드: 로그 줄을 request_id별로 묶어 'request done'(HTTP) 또는 혼잡도·미터기 분석 끝 로그(Kafka consumer, 5초 뒤)에서 request_result를 확정하고 SQLite 버퍼에 쓴다.
 import queue
 import re
 import socket
@@ -14,7 +14,7 @@ CODE_STEP = {
     "OK": "respond", "REQUEST_INVALID": "request_validate", "IMAGE_FETCH_FAILED": "image_fetch",
     "IMAGE_SIZE_INVALID": "image_validate", "IMAGE_TYPE_INVALID": "image_validate", "MODEL_NOT_READY": "model_ready",
     "UPSTREAM_FAILED": "luna_call", "JUDGE_PARSE_FAILED": "luna_parse", "INTERNAL": "unhandled", "QUEUE_TIMEOUT": "queue_wait",
-    "CONGESTION_PARSE_FAILED": "congestion_judge",
+    "QUEUE_WAIT_EXCEEDED": "queue_wait", "CONGESTION_PARSE_FAILED": "congestion_judge",
 }
 FALLBACK_STEP = {"model_not_ready": "model_ready", "upstream_failed": "pipe_ocr", "internal": "pipe_ocr", "judge_fallback": "pipe_judge",
                  "model_fallback": "congestion_model", "relevance_fallback": "congestion_relevance"}
@@ -26,7 +26,7 @@ REASON_HEADS = {
     "luna_call": ("openai request failed", "openai response shape is unexpected", "modal call failed", "congestion model call failed"),
     "luna_parse": ("model output is not valid",),
     "unhandled": ("unhandled error",),
-    "queue_wait": ("queue job expired",),
+    "queue_wait": ("queue job expired", "meter analysis skipped"),
     "congestion_judge": ("congestion judge invalid",),
 }
 BAG_TTL = 180
@@ -55,7 +55,7 @@ def reason_of(step: str, events: list[tuple[str, dict]]) -> dict:
                 return {"reason": "model_down", "status": None, "error_code": None}
             if head == "openai response shape is unexpected":
                 return {"reason": "shape", "status": None, "error_code": None}
-            if head == "queue job expired":
+            if head in ("queue job expired", "meter analysis skipped"):
                 return {"reason": "expired", "status": None, "error_code": None}
             if head == "unhandled error":
                 return {"reason": d.get("error", "error"), "status": None, "error_code": None}
@@ -182,6 +182,11 @@ class Assembler(threading.Thread):
         elif head in CONSUMER_END:
             bag["consumer_end"] = {"path": "/congestion-analyses", "code": details.get("code", "INTERNAL") if head.endswith("failed") else "OK",
                                    "ms": details.get("ms", "0"), "ts": item["ts"], "seen": time.time()}
+        elif head == "meter analysis finished":
+            failed = details.get("code") if details.get("code") not in (None, "-") else "INTERNAL"
+            code = "OK" if details.get("status") == "READ" else failed
+            bag["consumer_end"] = {"path": "/taxi_meter", "code": code, "ms": str(int((item["ts"] - bag["started"]) * 1000)),
+                                   "ts": item["ts"], "seen": time.time()}
         elif head == "request done":
             self.bags.pop(rid, None)
             return out + self.finish(rid, bag, details, item["ts"])

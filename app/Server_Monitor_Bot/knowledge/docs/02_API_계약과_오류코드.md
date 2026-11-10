@@ -89,7 +89,8 @@ app/core/logging.py의 request_context가 요청마다 request_id를 정한다. 
 | 이미지 다운로드 전체 상한 | 5초 | features/*/image.py TIMEOUT |
 | OpenAI 구간 상한(재시도 포함) | 45초 | llm/providers/openai.py TIMEOUT |
 | Modal 작업 1건 대기 상한 | 15초(플래그 modal.wait_s) | llm/providers/modal_gpu.py WAIT |
-| 종료 시 진행 중 작업 대기 | 50초 | main.py scheduler.stop(50), uvicorn --timeout-graceful-shutdown 50 |
+| 종료 시 진행 중 HTTP 요청 대기 | 50초 | uvicorn --timeout-graceful-shutdown 50 |
+| 그 뒤 내부 큐·미터기 Kafka 워커 대기 | 10초 | main.py scheduler.stop(10), image_analysis/kafka_consumer.py shutdown_timeout |
 
 - OpenAI 45초는 실측(2026-10-15, 75회) 최대 30.4초의 1.5배다. 주석상 60초 = 이미지 다운로드 최악 10초 + 45초 + 여유 5초로 잡았다.
 - Modal 15초는 주석상 60초 - 이미지 다운로드 10초 - luna 30초 - 여유 5초다.

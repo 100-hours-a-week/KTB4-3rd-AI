@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
     yield
     # 이미지 큐와 Kafka를 함께 멈춰 종료 대기가 누적되지 않게 한다.
     await asyncio.gather(
-        scheduler.stop(50),
+        scheduler.stop(10),
         *(worker.stop() for worker in app.state.kafka_workers),
     )
     if prepare is not None:

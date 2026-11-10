@@ -7,7 +7,7 @@ from uuid import uuid4
 from aiokafka import ConsumerRecord  # type: ignore[import-untyped]
 
 from ...core.logging import get_logger, request_id
-from ...inner_queue.scheduler import Scheduler
+from ...inner_queue.scheduler import KAFKA_SLOTS, Scheduler
 from ...kafka.config import KafkaSettings
 from ...kafka.envelope import InvalidMessage, read_envelope, write_envelope
 from ...kafka.trace import safe_id, trace_headers, trace_id_of
@@ -70,7 +70,7 @@ def create_worker(
         REQUEST_TOPIC,
         GROUP_ID,
         handler,
-        max_in_flight=int(env.get("IMAGE_ANALYSIS_MAX_IN_FLIGHT", "1")),
+        max_in_flight=int(env.get("IMAGE_ANALYSIS_MAX_IN_FLIGHT", KAFKA_SLOTS)),
         max_poll_interval_ms=int((scheduler.deadline + 60) * 1000),
-        shutdown_timeout=scheduler.deadline + 10,
+        shutdown_timeout=10,
     )

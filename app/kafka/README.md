@@ -74,7 +74,7 @@ BE는 `analysis_started_at`이 지금 분석 중인 제출과 같을 때만 반�
 | `CONGESTION_ANALYSIS_TIMEOUT_SECONDS` | `240` | 분석 한 건 제한 시간 |
 | `CONGESTION_STALE_AFTER_MINUTES` | `60` | 이보다 오래된 구간은 분석하지 않는다 |
 | `CONGESTION_MAX_IN_FLIGHT` | `10` | 한 번에 받아 동시에 분석하는 요청 수 |
-| `IMAGE_ANALYSIS_MAX_IN_FLIGHT` | `1` | 이미지 분석 요청을 한 번에 받아 동시에 분석하는 수 |
+| `IMAGE_ANALYSIS_MAX_IN_FLIGHT` | `12` | 이미지 분석 요청을 한 번에 받아 동시에 분석하는 수. 기본값은 내부 큐 API 워커 16개 중 HTTP 몫 4개를 뺀 값(`inner_queue/scheduler.py` `KAFKA_SLOTS`) |
 | `METER_QUEUE_WAIT_LIMIT_SECONDS` | `90` | 사진 제출부터 이보다 오래 기다린 요청은 분석하지 않는다 |
 
 ## 테스트

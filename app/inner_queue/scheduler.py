@@ -20,6 +20,8 @@ GPU = 10          # GPU 큐 상한 (= TOTAL - API)
 API_WORKERS = 16  # API 큐 워커 수. 8·16·30 비교(동시 35건)에서 P95 9.0·5.2·4.5초라 10초 안쪽 여유를 두고 16으로 둔다
 DEADLINE = 60.0   # BE read-timeout
 MIN_LEFT = 30.0   # luna 실측 최대 30.4초. 이보다 적게 남으면 시작하지 않는다
+HTTP_RESERVE = 4
+KAFKA_SLOTS = API_WORKERS - HTTP_RESERVE
 
 
 class Scheduler:
