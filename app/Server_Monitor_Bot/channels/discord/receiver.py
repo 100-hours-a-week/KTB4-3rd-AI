@@ -15,7 +15,7 @@ log = logging.getLogger("app.Server_Monitor_Bot.discord")
 def message_update(message_id: int, channel_id: int, user_id: int, name: str | None, username: str | None, text: str,
                    reply_to: int | None = None, attachment: dict | None = None) -> dict:
     msg = {"message_id": message_id, "from": {"id": user_id, "first_name": name, "username": username}, "chat": {"id": channel_id},
-           "text": text}
+           "text": text, "discord": True}
     if reply_to:
         msg["reply_to_message"] = {"message_id": reply_to}
     if attachment:
