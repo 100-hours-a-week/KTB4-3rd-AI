@@ -60,7 +60,7 @@ jobs:
       - name: Import smoke test
         env:
           IMAGE_DEVICE: 'off'
-        run: python -c "from app.main import app; print([r.path for r in app.routes])"
+        run: python -c "from app.main import app; print(sorted(app.openapi()['paths']))"
 
       # 외부 API를 부르는 평가 테스트(CONGESTION_LIVE_EVAL=1)는 CI에서 돌리지 않는다.
       - name: Unit tests
