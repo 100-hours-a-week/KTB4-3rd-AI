@@ -24,7 +24,7 @@ class DiagnosisReport(BaseModel):
 
 
 class ChatAnswer(BaseModel):
-    answer_text: str = Field(description="답 600자 이내. 결론 먼저")
+    answer_text: str = Field(description="답 400자 이내. 결론 먼저")
     evidence_ids: list[str]
     intent: Literal["answer", "knowledge_add", "knowledge_update", "knowledge_delete", "doc_update", "doc_delete", "out_of_scope"]
     target_knowledge_id: str | None = Field(description="수정·삭제할 지식 id, 아니면 null")

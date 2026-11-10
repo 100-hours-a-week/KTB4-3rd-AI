@@ -26,20 +26,22 @@ def test_labels_time_and_numbers():
 def test_alerts():
     item = {"signal": SIG, "at": AT, "rank": 3, "samples": ["e3501e330fcc", "38b95c7272d8", "zzz"]}
     assert r.alert_known(item, KN) == (
-        "🟠 영수증 · 이미지 다운로드(image_fetch) 실패\nPOST /receipt → IMAGE_FETCH_FAILED · 파일 없음(404) 9/17건 · 최근 5분 · 14:33\n"
-        "코드: app/features/receipt/image.py · download()\n\n"
-        "알려진 장애: 이미지 객체 없음(404) · KN_IMAGE_NOT_FOUND v1\n원인: 업로드 누락·객체 키 오류\n조치: 업로드 경로·키 생성 확인\n"
-        "확인할 곳: 최근 이미지 다운로드 실패 중 404 비율, 샘플 요청의 이미지 호스트\n샘플: /trace e3501e330fcc · /trace 38b95c7272d8\n\n"
+        "🟠 영수증 · 이미지 다운로드 실패\n파일 없음(404) 9/17건 · 최근 5분 · 14:33\n"
+        "코드: image_fetch · POST /receipt → IMAGE_FETCH_FAILED · app/features/receipt/image.py · download()\n\n"
+        "원인: 업로드 누락·객체 키 오류\n조치: 업로드 경로·키 생성 확인\n"
+        "확인할 곳: 최근 이미지 다운로드 실패 중 404 비율, 샘플 요청의 이미지 호스트\n"
+        "알려진 장애: 이미지 객체 없음(404) · KN_IMAGE_NOT_FOUND v1\n샘플: /trace e3501e330fcc · /trace 38b95c7272d8\n\n"
         "↩ 답장하면 이 장애로 대화합니다")
     assert r.alert_summary({**item, "held": 12, "drill": True, "samples": []}) == (
-        "🔴 [훈련] 영수증 · 이미지 다운로드(image_fetch) 실패 (재발)\n"
-        "POST /receipt → IMAGE_FETCH_FAILED · 파일 없음(404) 9/17건 · 최근 5분 · 14:33 · 지난 10분 +12건\n"
-        "코드: app/features/receipt/image.py · download()\n\n↩ 답장하면 이 장애로 대화합니다")
+        "🔴 [훈련] 영수증 · 이미지 다운로드 실패 (재발)\n파일 없음(404) 9/17건 · 최근 5분 · 14:33 · 지난 10분 +12건\n"
+        "코드: image_fetch · POST /receipt → IMAGE_FETCH_FAILED · app/features/receipt/image.py · download()\n\n↩ 답장하면 이 장애로 대화합니다")
     assert "확인할 곳:" not in r.alert_known(item, {**KN, "checks": []})
     size = {**SIG, "step_id": "image_validate", "reason": "size", "feature": "taxi_meter"}
-    assert r.where_lines(size)[0] == "POST /taxi_meter → IMAGE_SIZE_INVALID" and r.where_lines(size)[1].startswith("코드: app/features/taxi_meter/image.py")
-    assert r.where_lines({**SIG, "step_id": "image_validate", "reason": "wrong_type"})[0].endswith("IMAGE_TYPE_INVALID")
-    assert r.where_lines({"feature": "receipt", "step_id": "new_step"}) == ["POST /receipt"]
+    assert r.where_lines(size) == ["코드: image_validate · POST /taxi_meter → IMAGE_SIZE_INVALID · "
+                                   "app/features/taxi_meter/image.py · download()·load_image()"]
+    assert "IMAGE_TYPE_INVALID ·" in r.where_lines({**SIG, "step_id": "image_validate", "reason": "wrong_type"})[0]
+    assert r.where_lines({"feature": "receipt", "step_id": "new_step"}) == ["코드: new_step · POST /receipt"]
+    assert r.where_lines({}) == [] and r.title({"feature": "receipt", "step_id": "new_step"}) == "영수증 · new_step 실패"
 
 
 def ev(eid, summary, data):
@@ -66,17 +68,21 @@ def test_diagnosis_html_with_fold():
     text = r.diagnosis(REPORT, EVIDENCE, "receipt", AT, samples=["aaa", "bbb"], reason="connect")
     head, fold = text.split("<b>근거 상세</b>")
     assert head == (
-        "🟠 영수증 · 이미지 다운로드(image_fetch) 진단 · 14:33\nPOST /receipt → IMAGE_FETCH_FAILED\n"
-        "코드: app/features/receipt/image.py · download()\n17/17건 실패 (5분) · 연결 실패 8건, 파일 없음(404) 9건\n\n"
-        "원인(추정) · 확신도 낮음: 연결 실패와 &lt;404&gt;가 함께 관측\n조치: 호스트·포트 확인 &amp; 경로 확인\n예상 문제\n· 근거가 없어 예상 문제는 모릅니다\n샘플: /trace aaa · /trace bbb\n\n근거 요약\n"
+        "🟠 영수증 · 이미지 다운로드 진단 · 14:33\n"
+        "코드: image_fetch · POST /receipt → IMAGE_FETCH_FAILED · app/features/receipt/image.py · download()\n"
+        "17/17건 실패 (5분) · 연결 실패 8건, 파일 없음(404) 9건\n\n"
+        "원인(추정) · 확신도 낮음: 연결 실패와 &lt;404&gt;가 함께 관측\n조치: 호스트·포트 확인 &amp; 경로 확인\n예상 문제: 근거가 없어 모릅니다\n샘플: /trace aaa · /trace bbb\n\n근거 요약\n"
         "· 최근 15분 17/17 실패 (직전 0/0) · 연결 실패(connect) 8건, 파일 없음(404) 9건\n"
         "· 샘플 요청 2건 · 이미지 다운로드(image_fetch) 연결 실패(connect)\n· 참고 지식: 이미지 호스트 지연, 이미지 객체 없음\n")
     assert fold.startswith("\n<blockquote expandable>metric:receipt.image_fetch@14:33 — ")
     assert "None" not in fold and fold.rstrip().endswith("↩ 답장하면 이 장애로 대화합니다")
     assert "원인 미확정 — 대화로 알려 주시면 지식으로 저장합니다" in fold
     drill = r.diagnosis({**REPORT, "confidence": "high", "unknown": False}, [], "receipt", AT, drill=True)
-    assert drill.startswith("🧪 [훈련] 영수증 · 이미지 다운로드(image_fetch) 진단") and "원인 · 확신도 높음" in drill
+    assert drill.startswith("🧪 [훈련] 영수증 · 이미지 다운로드 진단") and "원인 · 확신도 높음" in drill
     assert "↩" not in drill and "blockquote" not in drill.split("근거 상세")[0]
+    issue = {"problem": "p", "solution": "s", "evidence_ids": ["req:bbb"]}
+    known = r.diagnosis({**REPORT, "evidence_ids": ["req:aaa"], "expected_issues": [issue]}, EVIDENCE, "receipt", AT)
+    assert "예상 문제\n· p → s\n" in known and "모릅니다" not in known.split("근거 상세")[0] and "req:bbb — " in known
 
 
 def test_comma_joined_ids_and_hard_limit():
@@ -133,13 +139,14 @@ def test_reports_and_system():
                                              "output_tokens": 2345, "avg_ms": 820, "max_ms": 4100}],
                                     "fail_reasons": [{"feature": "receipt", "step_id": "image_fetch", "reason": "http_4xx", "status": 404, "n": 9}],
                                     "monitor": {"runs": 3, "failed": 0, "tokens": 24861}, "health": None})
-    assert daily == ("📊 일일 리포트 · 2026-10-26\n\nLLM 호출\n· 영수증: 1,200회 · 실패 2 · 재시도 0 · 토큰 12,345/2,345 · 평균 820ms · 최대 4.1s\n\n"
+    assert daily == ("📊 일일 리포트 · 2026-10-26\n\nLLM 호출\n· 영수증: 1,200회 · 실패 2 · 재시도 0 · 토큰 입력 12,345 · 출력 2,345 · 평균 820ms · 최대 4.1s\n\n"
                      "실패 사유 상위\n· 영수증 이미지 다운로드(image_fetch) 파일 없음(404) 9건 · IMAGE_FETCH_FAILED\n\n"
                      "모니터: 실행 3회(실패 0) · 토큰 24,861 · 미발송 0 · 재시작 0 · 버린 기록 0")
     assert "· 호출 없음" in r.daily("d", {"llm": [], "fail_reasons": [], "monitor": None, "health": None})
     assert r.unmatched([{"feature": "taxi_meter", "step_id": "luna_parse", "reason": "not_json", "status": None, "error_code": None, "n": 3}]) == (
         "🧩 미분류 신호 · 최근 24시간\n어떤 지식에도 맞지 않음 — 지식 추가 후보\n· 미터기 응답 해석(luna_parse) JSON 아님(not_json) 3건 · JUDGE_PARSE_FAILED")
     assert r.seed({"inserted": 23}, [("KN_X", ["bad"])], "v1.2") == "📚 지식 시드 적재 · v1.2\n추가 23 · 갱신 0 · 색인 실패 0\n⚠️ 깨진 항목 KN_X: bad"
+    assert r.seed({}, [], "e5f706d3286383c38ba84a7b7218e898a0b8d576").startswith("📚 지식 시드 적재 · e5f706d32863\n")
     assert r.budget_reached("receipt.luna_call.x", 4, 9).endswith("receipt.luna_call.x 4/9")
 
 
