@@ -45,10 +45,13 @@ def setup_logging(buffer_dir) -> None:
         log.addHandler(console)
 
 
-def image_tag() -> str:
-    base = os.environ.get("ECS_CONTAINER_METADATA_URI_V4")
+def image_tag(env=os.environ, host: str | None = None) -> str:
+    base = env.get("ECS_CONTAINER_METADATA_URI_V4")
     if not base:
-        return "local"
+        if not env.get("KUBERNETES_SERVICE_HOST"):
+            return "local"
+        parts = (host or socket.gethostname()).rsplit("-", 2)
+        return f"k8s-{parts[1]}" if len(parts) == 3 else "k8s"
     try:
         with urllib.request.urlopen(f"{base}/task", timeout=2) as res:
             containers = json.load(res).get("Containers", [])

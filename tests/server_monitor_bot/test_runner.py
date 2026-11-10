@@ -1,4 +1,4 @@
-# 분석 프로세스: 일일 작업은 하루 한 번(MySQL 선점), AI_DB_URL 없이 기동, 스키마 재확인, DB 실패 사유 로그, 죽으면 다시 띄우기.
+# 분석 프로세스: 일일 작업은 하루 한 번(MySQL 선점), AI_DB_URL 없이 기동, 스키마 재확인, DB 실패 사유 로그, 죽으면 다시 띄우기, ECS 밖 이미지 태그(local·k8s 롤아웃 해시).
 import logging
 import subprocess
 import sys
@@ -170,3 +170,10 @@ def test_install_stops_on_bad_db_name_before_touching_stores(monkeypatch, capsys
     assert install.main([]) == 1
     captured = capsys.readouterr()
     assert "ai_<local|dev|stg|prod>" in captured.err and "secretpw" not in captured.err + captured.out
+
+
+def test_image_tag_outside_ecs():
+    assert runner.image_tag({}) == "local"
+    k8s = {"KUBERNETES_SERVICE_HOST": "10.0.0.1"}
+    assert runner.image_tag(k8s, "fastapi-784b49f79-bdkgs") == "k8s-784b49f79"
+    assert runner.image_tag(k8s, "fastapi") == "k8s"
