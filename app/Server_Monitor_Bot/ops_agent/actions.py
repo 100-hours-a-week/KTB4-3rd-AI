@@ -160,7 +160,7 @@ class Actions:
         return self.reply(event, render.say("drill_guessed", n=n))
 
     def status(self, event, p):
-        r, leader, task = self.repos, self.env.ctx.is_leader(), self.env.ctx.task_id[:6]
+        r, leader, task = self.repos, self.env.ctx.is_leader(), self.env.ctx.task_id.split(".")[0]
         try:
             r.db.ping()
             info = {"incidents": r.incidents.open_count(), "flags": len(r.adjust.flags()), "knowledge": len(r.knowledge.titles(limit=1000)),

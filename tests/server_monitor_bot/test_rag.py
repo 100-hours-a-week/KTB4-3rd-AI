@@ -254,9 +254,9 @@ def test_expected_issues_need_evidence_and_render():
     assert BY_SCHEMA["chat_answer"]({"intent": "doc_update", "target_doc": None, "edit_request": "x"}, {})
     assert BY_SCHEMA["chat_answer"]({"intent": "doc_update", "target_doc": "doc:ops#1", "edit_request": "x"}, {}) == []
     assert BY_SCHEMA["doc_draft"]({"op": "update", "text": " "}, {"op": "update"}) == ["고친 본문이 비었음"]
-    assert render.with_issues("답", ok["expected_issues"]) == "답\n\n예상 문제\n· p → s (kn:KN_B@v1)"
+    assert render.with_issues("답", ok["expected_issues"]) == "답\n\n예상 문제\n· p → s"
     assert render.with_issues("답", []) == "답"
     report = {"summary": "s", "cause_text": "c", "resolution_text": "r", "step_id": "luna_call", "confidence": "low", "unknown": True,
               "evidence_ids": [], "knowledge_ids": [], "expected_issues": []}
-    assert "근거가 없어 예상 문제는 모릅니다" in render.plain(render.diagnosis(report, [], "receipt"))
+    assert "예상 문제: 근거가 없어 모릅니다" in render.plain(render.diagnosis(report, [], "receipt"))
     assert signal_text({"step_id": ["luna_call"], "status": [429], "min_ratio": 0.5}) == "단계 luna_call, HTTP 상태 429, 실패 비율 50% 이상"

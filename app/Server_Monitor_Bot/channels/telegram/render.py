@@ -43,6 +43,11 @@ CODE_AT_FEATURE = {("congestion", "luna_call"): "app/features/congestion/model_c
                    ("congestion", "model_ready"): "app/features/congestion/model_client.py · _call()",
                    ("congestion", "congestion_judge"): "app/features/congestion/spot_extractor.py · assess_spot()"}
 REPLY = "↩ 답장하면 이 장애로 대화합니다"
+UNKNOWN_ISSUES = "예상 문제: 근거가 없어 모릅니다"
+ICONS = ("🔴", "🟠", "🟡", "🧪", "✅", "⚠️", "📊", "📚", "📄", "📝", "⚙️", "⏱", "🧩", "👥", "📖", "🗑", "🔎", "⏳", "➖", "⏸")
+LABELS = ("원인", "원인(추정)", "조치", "확인할 곳", "제목", "신호", "이유")
+HEADINGS = ("예상 문제", "근거 요약", "LLM 호출", "실패 사유 상위")
+META = ("코드:", "샘플:", "알려진 장애:", "참고 지식:", "예상 문제:", REPLY)
 DRILL_NOTICE = "훈련 장애라 대화·지식 저장 대상이 아닙니다"
 CHAT_FAILED = "답을 만들지 못했습니다. 질문을 조금 바꿔 다시 물어봐 주세요."
 UNVERIFIED = "(근거 미확인)"
@@ -218,11 +223,11 @@ def code_at(feature_, step_id) -> str | None:
     return at.format(f=feature_ or "{feature}") if at else None
 
 
-def where_lines(sig: dict, detail: str | None = None) -> list[str]:
-    head = " → ".join(x for x in (ENDPOINTS.get(sig.get("feature")), app_code(sig.get("step_id"), sig.get("reason"))) if x)
-    at = code_at(sig.get("feature"), sig.get("step_id"))
-    first = " · ".join(x for x in (head, detail) if x)
-    return [x for x in (first, f"코드: {at}" if at else None) if x]
+def where_lines(sig: dict) -> list[str]:
+    s = sig.get("step_id")
+    api = " → ".join(x for x in (ENDPOINTS.get(sig.get("feature")), app_code(s, sig.get("reason"))) if x)
+    found = [x for x in (s, api, code_at(sig.get("feature"), s)) if x]
+    return ["코드: " + " · ".join(found)] if found else []
 
 
 def samples_line(ids) -> str | None:
@@ -231,7 +236,8 @@ def samples_line(ids) -> str | None:
 
 
 def title(sig: dict, word: str = "실패", drill: bool = False) -> str:
-    return f"{'[훈련] ' if drill else ''}{feature(sig.get('feature'))} · {step(sig.get('step_id'))} {word}".strip()
+    s = sig.get("step_id")
+    return f"{'[훈련] ' if drill else ''}{feature(sig.get('feature'))} · {STEPS.get(s or '', s or '-')} {word}".strip()
 
 
 def count_line(sig: dict, at: float | None, held: int = 0) -> str:
@@ -244,11 +250,11 @@ def count_line(sig: dict, at: float | None, held: int = 0) -> str:
 
 def alert_known(item: dict, k: dict) -> str:
     sig = item["signal"]
-    lines = [f"{ICON.get(k.get('severity'), '🟠')} {title(sig, drill=bool(item.get('drill')))}",
-             *where_lines(sig, count_line(sig, item.get("at"))), "", f"알려진 장애: {k['title']} · {k['id']} v{k['version']}", f"원인: {k['cause']}",
-             f"조치: {k['resolution']}"]
+    lines = [f"{ICON.get(k.get('severity'), '🟠')} {title(sig, drill=bool(item.get('drill')))}", count_line(sig, item.get("at")),
+             *where_lines(sig), "", f"원인: {k['cause']}", f"조치: {k['resolution']}"]
     if k.get("checks"):
         lines.append("확인할 곳: " + ", ".join(k["checks"]))
+    lines.append(f"알려진 장애: {k['title']} · {k['id']} v{k['version']}")
     lines += [x for x in (samples_line(item.get("samples")),) if x] + ["", REPLY]
     return clip("\n".join(lines))
 
@@ -257,7 +263,7 @@ def alert_summary(item: dict) -> str:
     sig = item["signal"]
     word = "실패 (재발)" if item.get("held") else "실패"
     lines = [f"{ICON.get(item.get('rank'), '🟠')} {title(sig, word, bool(item.get('drill')))}",
-             *where_lines(sig, count_line(sig, item.get("at"), item.get("held") or 0))]
+             count_line(sig, item.get("at"), item.get("held") or 0), *where_lines(sig)]
     lines += [x for x in (samples_line(item.get("samples")),) if x] + ["", REPLY]
     return clip("\n".join(lines))
 
@@ -342,7 +348,8 @@ def diagnosis(r: dict, evidence: list[dict], feature_: str | None, at: float | N
     body += [f"{label} · 확신도 {CONF.get(str(r.get('confidence')), r.get('confidence'))}: {r['cause_text']}"]
     if r.get("resolution_text"):
         body.append(f"조치: {r['resolution_text']}")
-    body += ["예상 문제", *issues(r.get("expected_issues"))]
+    items = r.get("expected_issues")
+    body += ["예상 문제", *issues(items)] if items else [UNKNOWN_ISSUES]
     if samples_line(samples):
         body.append(samples_line(samples))
     lines = summary_lines(evidence, r.get("evidence_ids") or [])
@@ -355,7 +362,8 @@ def diagnosis(r: dict, evidence: list[dict], feature_: str | None, at: float | N
         tail.append("원인 미확정 — 대화로 알려 주시면 지식으로 저장합니다")
     if not drill:
         tail.append(REPLY)
-    return html_message(body, "근거 상세", detail_lines(evidence, r.get("evidence_ids") or []), [""] + tail if tail else None)
+    cited = list(dict.fromkeys([*(r.get("evidence_ids") or []), *(e for i in items or [] for e in i.get("evidence_ids") or [])]))
+    return html_message(body, "근거 상세", detail_lines(evidence, cited), [""] + tail if tail else None)
 
 
 def chat_answer(text: str, evidence: list[dict], cited: list[str], memory: list[dict] | None = None) -> tuple[str, bool]:
@@ -420,11 +428,8 @@ def knowledge_draft(op: str, k: dict, draft_id: str, reason: str, duplicate_of: 
     return clip("\n".join(lines))
 
 
-UNKNOWN_ISSUES = "· 근거가 없어 예상 문제는 모릅니다"
-
-
 def issues(items: list[dict] | None) -> list[str]:
-    return [f"· {i.get('problem')} → {i.get('solution')} ({', '.join(i.get('evidence_ids') or [])})" for i in items or []] or [UNKNOWN_ISSUES]
+    return [f"· {i.get('problem')} → {i.get('solution')}" for i in items or []]
 
 
 def with_issues(text: str, items: list[dict] | None) -> str:
@@ -471,7 +476,8 @@ def knowledge_saved(op: str, k: dict, indexed: bool = True) -> str:
 
 
 def seed(stats: dict, broken: list[tuple[str, list[str]]], tag: str) -> str:
-    lines = [f"📚 지식 시드 적재 · {tag}",
+    tag = str(tag)
+    lines = [f"📚 지식 시드 적재 · {tag if len(tag) <= 20 else tag[:12]}",
              f"추가 {num(stats.get('inserted'))} · 갱신 {num(stats.get('updated'))} · 색인 실패 {num(stats.get('index_failed'))}"]
     if stats.get("diverged"):
         lines.append("대화로 고친 항목(덮어쓰지 않음): " + ", ".join(stats["diverged"]))
@@ -500,7 +506,7 @@ def daily(day: str, data: dict) -> str:
     lines = [f"📊 일일 리포트 · {day}", "", "LLM 호출"]
     for r in data["llm"] or []:
         lines.append(f"· {feature(r['feature'])}: {num(r['calls'])}회 · 실패 {num(r['fails'])} · 재시도 {num(r['retried'])} · "
-                     f"토큰 {num(r['input_tokens'])}/{num(r['output_tokens'])} · 평균 {ms(r['avg_ms'])} · 최대 {ms(r['max_ms'])}")
+                     f"토큰 입력 {num(r['input_tokens'])} · 출력 {num(r['output_tokens'])} · 평균 {ms(r['avg_ms'])} · 최대 {ms(r['max_ms'])}")
     if not data["llm"]:
         lines.append("· 호출 없음")
     if data["fail_reasons"]:

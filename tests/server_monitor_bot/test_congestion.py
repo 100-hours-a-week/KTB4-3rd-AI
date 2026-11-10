@@ -60,10 +60,10 @@ def test_model_failure_key_missing_and_fallback():
 
 def test_alert_lines_and_knowledge_signal():
     sig = {"feature": "congestion", "step_id": "congestion_judge", "reason": "id_mismatch", "status": None, "error_code": None}
-    assert r.where_lines(sig) == ["POST /congestion-analyses → CONGESTION_PARSE_FAILED",
-                                  "코드: app/features/congestion/spot_extractor.py · assess_spot()"]
-    assert r.where_lines({**sig, "step_id": "luna_call"})[1] == "코드: app/features/congestion/model_client.py · _call()"
-    assert r.where_lines({**sig, "feature": "receipt", "step_id": "luna_call"})[1].startswith("코드: app/llm/providers/openai.py")
+    assert r.where_lines(sig) == ["코드: congestion_judge · POST /congestion-analyses → CONGESTION_PARSE_FAILED · "
+                                  "app/features/congestion/spot_extractor.py · assess_spot()"]
+    assert r.where_lines({**sig, "step_id": "luna_call"})[0].endswith("UPSTREAM_FAILED · app/features/congestion/model_client.py · _call()")
+    assert "UPSTREAM_FAILED · app/llm/providers/openai.py" in r.where_lines({**sig, "feature": "receipt", "step_id": "luna_call"})[0]
     assert r.step("congestion_judge") == "판정 출력 검증(congestion_judge)" and r.cause("id_mismatch") == "판정 id 불일치(id_mismatch)"
     item = {"id": "KN_CONGESTION_JUDGE", "title": "t", "symptom": "s", "cause": "c", "resolution": "r", "checks": [], "features": ["congestion"],
             "match": {"step_id": ["congestion_judge"], "reason": ["id_mismatch"]}, "policy_key": None, "alert": "diagnose", "severity": "medium"}

@@ -1,4 +1,4 @@
-# 디스코드 봇 REST 클라이언트(httpx 동기, API v10): 텔레그램 클라이언트와 같은 메서드로 채널 하나에 보내고 고치고 첨부를 받는다. HTML은 Markdown으로 바꾸고 2,000자로 자른다.
+# 디스코드 봇 REST 클라이언트(httpx 동기, API v10): 텔레그램 클라이언트와 같은 메서드로 채널 하나에 보내고 고치고 첨부를 받는다. 제목·이름표는 굵게, 부가 정보와 접힌 근거는 작은 글씨 한 줄로 바꾸고, 2,000자를 넘으면 근거 줄부터 빼고 줄 경계(앞쪽뿐이면 줄 중간)에서 자른 뒤 생략 안내와, 원문에 있던 답장 안내를 붙인다.
 import html
 import logging
 import re
@@ -6,9 +6,13 @@ import time
 
 import httpx
 
+from ..telegram.render import HEADINGS, ICONS, LABELS, META, REPLY
+
 log = logging.getLogger("app.Server_Monitor_Bot.discord")
 API = "https://discord.com/api/v10"
 LIMIT = 2000
+OMITTED = "-# … 2,000자를 넘어 일부를 생략했습니다"
+REPLY_LINE = f"-# {REPLY}"
 WAITS = (1, 3, 9)
 MARKS = re.compile(r"([\\*_~|])")
 
@@ -17,13 +21,66 @@ def escape(text: str) -> str:
     return "".join(part if part.startswith("`") else MARKS.sub(r"\\\1", part) for part in re.split(r"(`[^`\n]+`)", text))
 
 
+def ref(item: str) -> str:
+    kind, _, rest = item.partition(":")
+    rest = rest.split("@")[0]
+    return rest if kind == "kn" else rest.replace("#", " #") if kind == "doc" else item.split("@")[0]
+
+
+def refs(fold: str) -> str:
+    found, chats = [], 0
+    for line in fold.split("\n"):
+        head = line.split(" — ")[0].strip()
+        if head.startswith("지난 대화"):
+            chats += 1
+            continue
+        for item in (x.strip() for x in head.split(",")):
+            if item.startswith("chat:"):
+                chats += 1
+            elif item and item != "…" and ref(item) not in found:
+                found.append(ref(item))
+    found += [f"지난 대화 {chats}건"] if chats else []
+    return f"-# 근거 {' · '.join(found)}" if found else ""
+
+
 def to_markdown(text: str, is_html: bool) -> str:
     text = escape(text)
     if not is_html:
         return text
-    text = re.sub(r"<blockquote[^>]*>(.*?)</blockquote>", lambda m: "\n".join(f"> {line}" for line in m.group(1).split("\n")), text, flags=re.S)
+    text = re.sub(r"(?:<b>[^<\n]*</b>\n)?<blockquote[^>]*>(.*?)</blockquote>", lambda m: refs(m.group(1)), text, flags=re.S)
     text = re.sub(r"</?b>", "**", text)
     return html.unescape(re.sub(r"<[^>]+>", "", text))
+
+
+def style(text: str) -> str:
+    out = []
+    for i, line in enumerate(text.split("\n")):
+        name, sep, rest = line.partition(": ")
+        if line.startswith("-# "):
+            pass
+        elif i == 0 and line.startswith(ICONS) or line in HEADINGS:
+            line = f"**{line}**"
+        elif line.startswith(META):
+            line = f"-# {line}"
+        elif sep and name.split(" · ")[0] in LABELS:
+            line = f"**{name}** {rest}"
+        out.append(line)
+    return "\n".join(out)
+
+
+def trim(text: str, limit: int) -> str:
+    if len(text) > limit:
+        text = "\n".join(x for x in text.split("\n") if not x.startswith("-# 근거 "))
+    if len(text) <= limit:
+        return text
+    lines = text.split("\n")
+    end = "\n".join([OMITTED, *([REPLY_LINE] if REPLY_LINE in lines else [])])
+    body = "\n".join(x for x in lines if x != REPLY_LINE)[: limit - len(end) - 3]
+    cut = body.rfind("\n")
+    if cut > len(body) // 2:
+        return f"{body[:cut]}\n{end}"
+    body = body[:-1] if (len(body) - len(body.rstrip("\\"))) % 2 else body
+    return f"{body}{'**' if body.rsplit(chr(10), 1)[-1].count('**') % 2 else ''}\n{end}"
 
 
 def components(buttons) -> list[dict]:
@@ -69,8 +126,10 @@ class DiscordClient:
         return None
 
     def text(self, text: str, html: bool = False) -> str:
-        full = f"{self.head} {text}" if self.head and not text.startswith(self.head) else text
-        return to_markdown(full, html)[:LIMIT]
+        if self.head and text.startswith(self.head):
+            text = text[len(self.head):].lstrip(" ")
+        body = style(to_markdown(text, html))
+        return f"{self.head} {trim(body, LIMIT - len(self.head) - 1)}" if self.head else trim(body, LIMIT)
 
     def send(self, chat_id: int | None, text: str, buttons=None, reply_to: int | None = None, html: bool = False) -> int | None:
         channel = chat_id or self.channel_id
