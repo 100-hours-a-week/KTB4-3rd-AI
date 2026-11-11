@@ -12,6 +12,8 @@ from ...kafka.config import KafkaSettings
 from ...kafka.envelope import InvalidMessage, read_envelope, write_envelope
 from ...kafka.trace import safe_id, trace_headers, trace_id_of
 from ...kafka.worker import KafkaWorker, OutgoingRecord
+from ..receipt.kafka_handler import TRANSFER_REQUESTED, TransferAnalysisHandler
+from ..receipt.main import KIND as RECEIPT
 from ..taxi_meter.kafka_handler import METER_REQUESTED, MeterAnalysisHandler
 from ..taxi_meter.main import KIND as TAXI_METER
 
@@ -64,7 +66,8 @@ def create_worker(
     settings: KafkaSettings, scheduler: Scheduler, env: Mapping[str, str] = os.environ
 ) -> KafkaWorker:
     meter = MeterAnalysisHandler.from_env(lambda image_url: scheduler.submit(TAXI_METER, image_url), env)
-    handler = ImageAnalysisRequestHandler({METER_REQUESTED: meter})
+    transfer = TransferAnalysisHandler(lambda image_url: scheduler.submit(RECEIPT, image_url))
+    handler = ImageAnalysisRequestHandler({METER_REQUESTED: meter, TRANSFER_REQUESTED: transfer})
     return KafkaWorker(
         settings,
         REQUEST_TOPIC,
