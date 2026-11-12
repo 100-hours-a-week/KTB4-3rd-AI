@@ -1,4 +1,4 @@
-# 미터기 Kafka 분석: 'meter analysis finished' 로그로 요청 기록을 확정하고 결과 상태·코드를 단계·이유로 바꾼다. Kafka 몫은 내부 큐 KAFKA_SLOTS, 종료 대기는 10초다.
+# 미터기·송금 Kafka 분석: 'meter/transfer analysis finished' 로그로 요청 기록을 확정하고 결과 상태·코드를 단계·이유로 바꾼다. Kafka 몫은 내부 큐 KAFKA_SLOTS, 종료 대기는 10초다.
 import time
 
 from app.Server_Monitor_Bot.hooks.assemble import Assembler
@@ -31,6 +31,23 @@ def test_meter_kafka_results_are_recorded():
     assert (rows["bad"]["result"], rows["bad"]["step_id"]) == ("fail", "luna_parse")
     assert (rows["late"]["code"], rows["late"]["step_id"], rows["late"]["reason"]) == ("QUEUE_WAIT_EXCEEDED", "queue_wait", "expired")
     assert (rows["x"]["code"], rows["x"]["step_id"]) == ("INTERNAL", "unhandled")
+
+
+def test_transfer_kafka_results_are_recorded_as_receipt():
+    a = Assembler(outbox=None)
+    t, img = "app.features.receipt.kafka_handler", "app.features.receipt.image"
+    for item in (
+        log("transfer analysis finished: settlement_id=1 user_id=7 attempt=1 status=READ code=-", "t-ok", logger=t),
+        log("image download failed: host=s3 reason=http_4xx status=403 ms=9", "t-ex", "WARNING", img, ago=1),
+        log("transfer analysis finished: settlement_id=2 user_id=7 attempt=2 status=SYSTEM_FAILURE code=IMAGE_FETCH_FAILED", "t-ex", logger=t),
+        log("transfer analysis finished: settlement_id=3 user_id=8 attempt=1 status=UNREADABLE code=JUDGE_PARSE_FAILED", "t-bad", logger=t),
+    ):
+        a.handle("log", item)
+    rows = {x["request_id"]: x for kind, x in a.settle(time.time() + 10) if kind == "request_result"}
+    assert {r["feature"] for r in rows.values()} == {"receipt"} and not a.bags
+    assert (rows["t-ok"]["result"], rows["t-ok"]["code"]) == ("ok", "OK")
+    assert (rows["t-ex"]["code"], rows["t-ex"]["step_id"], rows["t-ex"]["status"]) == ("IMAGE_FETCH_FAILED", "image_fetch", 403)
+    assert (rows["t-bad"]["result"], rows["t-bad"]["step_id"]) == ("fail", "luna_parse")
 
 
 def test_meter_worker_uses_kafka_slots_and_short_stop():

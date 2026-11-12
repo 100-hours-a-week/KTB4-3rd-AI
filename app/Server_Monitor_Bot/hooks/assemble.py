@@ -1,4 +1,4 @@
-# 조립 쓰레드: 로그 줄을 request_id별로 묶어 'request done'(HTTP) 또는 혼잡도·미터기 분석 끝 로그(Kafka consumer, 5초 뒤)에서 request_result를 확정하고 SQLite 버퍼에 쓴다.
+# 조립 쓰레드: 로그 줄을 request_id별로 묶어 'request done'(HTTP) 또는 혼잡도·미터기·송금 분석 끝 로그(Kafka consumer, 5초 뒤)에서 request_result를 확정하고 SQLite 버퍼에 쓴다.
 import queue
 import re
 import socket
@@ -32,6 +32,7 @@ REASON_HEADS = {
 BAG_TTL = 180
 CONSUMER_GRACE = 5
 CONSUMER_END = ("congestion analysis done", "congestion analysis failed")
+IMAGE_END = {"meter analysis finished": "/taxi_meter", "transfer analysis finished": "/receipt"}
 
 
 def split(message: str) -> tuple[str, dict[str, str]]:
@@ -182,10 +183,10 @@ class Assembler(threading.Thread):
         elif head in CONSUMER_END:
             bag["consumer_end"] = {"path": "/congestion-analyses", "code": details.get("code", "INTERNAL") if head.endswith("failed") else "OK",
                                    "ms": details.get("ms", "0"), "ts": item["ts"], "seen": time.time()}
-        elif head == "meter analysis finished":
+        elif head in IMAGE_END:
             failed = details.get("code") if details.get("code") not in (None, "-") else "INTERNAL"
             code = "OK" if details.get("status") == "READ" else failed
-            bag["consumer_end"] = {"path": "/taxi_meter", "code": code, "ms": str(int((item["ts"] - bag["started"]) * 1000)),
+            bag["consumer_end"] = {"path": IMAGE_END[head], "code": code, "ms": str(int((item["ts"] - bag["started"]) * 1000)),
                                    "ts": item["ts"], "seen": time.time()}
         elif head == "request done":
             self.bags.pop(rid, None)
